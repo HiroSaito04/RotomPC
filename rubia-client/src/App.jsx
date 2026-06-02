@@ -2,32 +2,32 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 
 // HomePage Structure
 //LabAct02
-import Layout from '@/layouts/Layout';
-import ArticlePage from '@/pages/LandingPages/ArticlePage';
-import HomePage from '@/pages/LandingPages/HomePage';
-import AboutPage from '@/pages/LandingPages/AboutPage';
+import Layout from './layouts/Layout';
+import ArticlePage from './pages/LandingPages/ArticlePage';
+import HomePage from './pages/LandingPages/HomePage';
+import AboutPage from './pages/LandingPages/AboutPage';
 
 //LabAct3
-import ArticleListPage from '@/pages/LandingPages/ArticleListPage';
-import NotFoundPage from '@/pages/NotFoundPage';
+import ArticleListPage from './pages/LandingPages/ArticleListPage';
+import NotFoundPage from './pages/NotFoundPage';
 
 //LabAct4
-import AuthLayout from '@/layouts/AuthLayout';
-import SignInPage from '@/pages/AuthPages/SignInPage';
-import SignUpPage from '@/pages/AuthPages/SignUpPage';
+import AuthLayout from './layouts/AuthLayout';
+import SignInPage from './pages/AuthPages/SignInPage';
+import SignUpPage from './pages/AuthPages/SignUpPage';
 
 //LabAct4-5
-import DashLayout from '@/layouts/DashLayout';
-import DashboardPage from '@/pages/DashboardPage/DashboardPage';
-import ReportsPage from '@/pages/DashboardPage/ReportsPage';
-import UsersPage from '@/pages/DashboardPage/UsersPage';
+import DashLayout from './layouts/DashLayout';
+import DashboardPage from './pages/DashboardPage/DashboardPage';
+import ReportsPage from './pages/DashboardPage/ReportsPage';
+import UsersPage from './pages/DashboardPage/UsersPage';
 
 //LabAct6
-import DashArticleListPage from '@/pages/DashboardPage/DashArticleListPage';
+import DashArticleListPage from './pages/DashboardPage/DashArticleListPage';
 
 //RotomDex
-import RotomDexPage from '@/pages/LandingPages/RotomDexPage';
-import PokemonPage from '@/pages/LandingPages/PokemonPage';
+import RotomDexPage from './pages/LandingPages/RotomDexPage';
+import PokemonPage from './pages/LandingPages/PokemonPage';
 
 const routes = [
   {

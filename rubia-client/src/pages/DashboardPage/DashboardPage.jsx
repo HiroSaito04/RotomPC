@@ -8,7 +8,7 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 
 // Importing your centralized user service layer
-import * as userService from '@/services/UserService';
+import * as userService from '../../services/UserService';
 
 const trainerColumns = [
   { field: '_id', headerName: 'ID', width: 220 },

@@ -1,8 +1,8 @@
 // rubia-client\src\pages\ArticlePage\ArticlePage.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import Button from '@/components/Button.jsx';
-import NotFoundPage from '@/NotFoundPage.jsx';
+import Button from '../../components/Button.jsx';
+import NotFoundPage from '../NotFoundPage.jsx';
 
 // Import your centralized article service layer
 import * as articleService from '../../services/ArticleService';

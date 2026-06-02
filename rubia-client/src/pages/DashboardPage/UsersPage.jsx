@@ -12,7 +12,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { useNavigate } from 'react-router-dom';
 
 // Integrated your custom centralized user service layer
-import * as userService from '@/services/UserService';
+import * as userService from '../../services/UserService';
 
 const roles = ['admin', 'trainer', 'professor', 'editor'];
 const genders = ['male', 'female', 'other'];

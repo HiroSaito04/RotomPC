@@ -1,11 +1,11 @@
 // rubia-client\src\pages\ArticleListPage\ArticleListPage.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Button from '@/components/Button.jsx';
-import ArticleList from '@/components/ArticleList.jsx';
+import Button from '../../components/Button.jsx';
+import ArticleList from '../../components/ArticleList.jsx';
 
 // Import your centralized article service layer
-import * as articleService from '@/services/ArticleService';
+import * as articleService from '../../services/ArticleService';
 
 const ArticleListPage = () => {
   const [articles, setArticles] = useState([]);
