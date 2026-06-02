@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import Button from "../components/Button";
+import Button from "@/components/Button";
 
 const links = [
   { label: 'PokeDex', to: '/' },

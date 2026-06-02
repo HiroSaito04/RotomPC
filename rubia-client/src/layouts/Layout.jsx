@@ -1,7 +1,7 @@
 import { Outlet } from 'react-router-dom';
-import NavBar from '../components/NavBar';
-import Footer from '../components/Footer';
-import ScrollToTop from '../components/ScrolltoTop';
+import NavBar from '@/components/NavBar';
+import Footer from '@/components/Footer';
+import ScrollToTop from '@/components/ScrolltoTop';
 
 const Layout = () => {
   return (

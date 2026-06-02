@@ -9,7 +9,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { DataGrid } from '@mui/x-data-grid';
 
 // Import your centralized article service layer
-import * as articleService from '../../services/ArticleService';
+import * as articleService from '@/services/ArticleService';
 
 const COLOR_OPTIONS = [
   { value: 'bg-pink-500', label: 'Pink' },

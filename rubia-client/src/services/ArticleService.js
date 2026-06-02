@@ -1,6 +1,6 @@
 // rubia-client/src/services/ArticleService.js
 import axios from 'axios';
-import constants from '../constants';
+import constants from '@/constants';
 
 const API = axios.create({
   baseURL: `${constants.HOST}/articles`,
