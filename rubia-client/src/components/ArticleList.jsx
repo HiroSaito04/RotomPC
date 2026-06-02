@@ -1,5 +1,4 @@
-//rubia-client\src\components\ArticleList.jsx
-import Button from '@/Button';
+import Button from './Button';
 
 const ArticleList = ({ articles }) => {
   return (

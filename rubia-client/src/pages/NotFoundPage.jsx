@@ -1,5 +1,5 @@
-import magikarpDance from "@/assets/res/magikarp-dance.gif";
-import Button from "@/components/Button";
+import magikarpDance from "../assets/res/magikarp-dance.gif";
+import Button from "../components/Button";
 
 function NotFoundPage() {
   return (

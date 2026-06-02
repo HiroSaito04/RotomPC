@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import Button from '@/components/Button';
-import badgeA from '@/assets/res/A.png';
-import badgeB from '@/assets/res/B.png';
-import badgeC from '@/assets/res/C.png';
-import badgeD from '@/assets/res/D.png';
+import Button from '../../components/Button';
+import badgeA from '../../assets/res/A.png';
+import badgeB from '../../assets/res/B.png';
+import badgeC from '../../assets/res/C.png';
+import badgeD from '../../assets/res/D.png';
 
 const TRAINER_SPRITES = {
   male: [

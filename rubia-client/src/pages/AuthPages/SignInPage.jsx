@@ -1,8 +1,8 @@
 // rubia-client\src\pages\Auth\SignInPage.jsx
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import Button from '@/components/Button';
-import * as userService from '@/services/UserService';
+import Button from '../../components/Button';
+import * as userService from '../../services/UserService';
 
 const inputClasses = 
   'mt-2 w-full rounded-xl border border-zinc-300 bg-zinc-100 px-4 py-3 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-zinc-900 focus:bg-zinc-50';
