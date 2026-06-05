@@ -12,6 +12,18 @@ function ArticlePage() {
   const [article, setArticle] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Helper Engine: Convert single document's buffer into Base64 format
+  const renderArticleImage = (row) => {
+    if (!row) return '';
+    if (row.imageBuffer && row.imageMimeType) {
+      const binaryString = typeof row.imageBuffer === 'string' 
+        ? row.imageBuffer 
+        : btoa(new Uint8Array(row.imageBuffer.data || row.imageBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+      return `data:${row.imageMimeType};base64,${binaryString}`;
+    }
+    return row.imageFallbackUrl || row.image || 'https://ik.imagekit.io/ytwzizvepv/RotomPC/placeholder.png';
+  };
+
   useEffect(() => {
     console.log("React Router Param (:name) extracted value:", name);
 
@@ -74,7 +86,7 @@ function ArticlePage() {
             <div className="overflow-hidden rounded-[2.5rem] border-4 border-zinc-900 bg-white shadow-[12px_12px_0px_0px_rgba(24,24,27,1)]">
               <div className="relative aspect-video border-b-4 border-zinc-900 bg-zinc-200">
                 <img 
-                  src={article.image} 
+                  src={renderArticleImage(article)} 
                   alt={article.title} 
                   className="h-full w-full object-cover" 
                 />
@@ -85,18 +97,12 @@ function ArticlePage() {
                   </span>
                 </div>
                 <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%)] bg-[length:100%_4px]"></div>
-                <div className="absolute top-0 right-0 p-4">
-                  <div className="h-4 w-4 border-t-2 border-r-2 border-white/30"></div>
-                </div>
-                <div className="absolute bottom-0 left-0 p-4">
-                  <div className="h-4 w-4 border-b-2 border-l-2 border-white/30"></div>
-                </div>
               </div>
 
               <div className="p-8">
                 <div className="mb-4 flex items-center gap-3">
                   <span className={`rounded-md border-2 border-zinc-900 ${article.color || 'bg-zinc-500'} px-3 py-0.5 text-[10px] font-black uppercase text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]`}>
-                    {article.date}
+                    {article.date || 'RECENT'}
                   </span>
                   <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest">Log Entry #{article.id}</span>
                 </div>

@@ -62,7 +62,6 @@ const RotomDexPage = () => {
               const res = await fetch(mon.url);
               const detail = await res.json();
               
-              // 1. Capture all types in an array for filtering later
               const allTypes = detail.types.map(t => t.type.name);
               const primaryType = allTypes[0] || 'normal';
               const secondaryType = allTypes[1] || null;
@@ -79,8 +78,8 @@ const RotomDexPage = () => {
                 id: detail.id, 
                 dexNo: String(trueDexId).padStart(4, '0'), 
                 type: primaryType,
-                secondaryType: secondaryType, // Saved secondary type to reference in filter or UI
-                types: allTypes,               // Array containing both types for simple mapping/filtering
+                secondaryType: secondaryType,
+                types: allTypes,
                 bg: design.bg,
                 grad: design.grad,
                 image: detail.sprites.versions?.['generation-v']?.['black-white']?.animated?.front_default || detail.sprites.front_default,
@@ -116,14 +115,10 @@ const RotomDexPage = () => {
     fetchDexGeneration();
   }, [selectedGen]);
 
-  // 2. Updated Memo filter logic to check if selectedType exists inside the types array
   const filteredPokemon = useMemo(() => {
     return pokemonList.filter((poke) => {
       const matchesSearch = poke.name.toLowerCase().includes(searchQuery.toLowerCase()) || poke.dexNo.includes(searchQuery);
-      
-      const matchesType = selectedType === 'ALL' || 
-        poke.types.some(t => t.toUpperCase() === selectedType.toUpperCase());
-
+      const matchesType = selectedType === 'ALL' || poke.types.some(t => t.toUpperCase() === selectedType.toUpperCase());
       return matchesSearch && matchesType;
     });
   }, [pokemonList, searchQuery, selectedType]);
@@ -156,7 +151,6 @@ const RotomDexPage = () => {
               Rotom-Dex Database
             </h1>
           </div>
-          
           <div className="shrink-0">
             <Link 
               to="/" 
@@ -168,7 +162,7 @@ const RotomDexPage = () => {
         </div>
       </section>
 
-      {/* Filter and Control Operations Terminal */}
+      {/* Operation Terminal Layout */}
       <section className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 z-10">
         <div className="border-4 border-zinc-950 bg-zinc-900 p-6 rounded-[2rem] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col gap-4">
           <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
@@ -225,26 +219,29 @@ const RotomDexPage = () => {
         </div>
       </section>
 
-      {/* Main Grid Vector */}
+      {/* Main Grid View Vector */}
       <section className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 z-10">
         {filteredPokemon.length === 0 ? (
           <div className="text-center py-20 border-4 border-dashed border-zinc-800 rounded-3xl bg-zinc-900/50">
             <p className="text-sm font-black tracking-widest text-zinc-500 uppercase">No Data Logs Found Matching Request Parameters</p>
           </div>
         ) : (
-          <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          /* MODIFIED: Fixed columns to 3 on mobile (grid-cols-3) up to tablet (sm:grid-cols-3) */
+          <div className="grid gap-2 sm:gap-6 grid-cols-3 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {filteredPokemon.map((poke) => (
               <article 
                 key={poke.id} 
-                className={`group relative rounded-[2rem] border-4 border-zinc-950 ${poke.bg} p-1.5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all hover:scale-[1.03] hover:shadow-[9px_9px_0px_0px_rgba(0,0,0,1)]`}
+                /* MODIFIED: Reduced borders on mobile (border-2 to border-4) and card tracking gaps */
+                className={`group relative rounded-xl sm:rounded-[2rem] border-2 sm:border-4 border-zinc-950 ${poke.bg} p-1 sm:p-1.5 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] sm:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all hover:scale-[1.03] hover:shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] sm:hover:shadow-[9px_9px_0px_0px_rgba(0,0,0,1)]`}
               >
-                <div className="rounded-[1.7rem] p-4 flex flex-col h-full justify-between">
-                  <div className={`relative flex aspect-square items-center justify-center rounded-xl bg-gradient-to-b ${poke.grad} border-4 border-zinc-950 shadow-inner overflow-hidden`}>
+                {/* MODIFIED: Scaled down interior layout margins and internal paddings */}
+                <div className="rounded-lg sm:rounded-[1.7rem] p-1.5 sm:p-4 flex flex-col h-full justify-between">
+                  <div className={`relative flex aspect-square items-center justify-center rounded-lg sm:rounded-xl bg-gradient-to-b ${poke.grad} border-2 sm:border-4 border-zinc-950 shadow-inner overflow-hidden`}>
                     <div className="absolute inset-0 opacity-15 bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,#000_2px,#000_4px)]" />
                     <img 
                       src={poke.image || poke.fallbackImage} 
                       alt={poke.name} 
-                      className="relative z-10 w-24 h-24 object-contain transition-transform group-hover:scale-125" 
+                      className="relative z-10 w-12 h-12 sm:w-24 sm:h-24 object-contain transition-transform group-hover:scale-125" 
                       onError={(e) => {
                         if (e.target.src === poke.image && poke.image !== poke.fallbackImage) {
                           e.target.src = poke.fallbackImage;
@@ -256,25 +253,31 @@ const RotomDexPage = () => {
                     />
                   </div>
 
-                  <div className="mt-4 flex justify-between items-start gap-1">
-                    <div className="truncate">
-                      <span className="text-[9px] font-black uppercase text-zinc-400 tracking-widest block">NO. {poke.dexNo}</span>
-                      <h3 className="text-base font-black text-zinc-950 italic uppercase leading-none mt-0.5 truncate">{poke.name}</h3>
+                  {/* MODIFIED: Structured text and layout tags to safely wrap inside tiny 3-row grid columns */}
+                  <div className="mt-1.5 sm:mt-4 flex flex-col lg:flex-row lg:justify-between lg:items-start gap-0.5 sm:gap-1">
+                    <div className="truncate w-full">
+                      <span className="text-[6px] sm:text-[9px] font-black uppercase text-zinc-500 tracking-wider sm:tracking-widest block">
+                        NO. {poke.dexNo}
+                      </span>
+                      <h3 className="text-[9px] sm:text-base font-black text-zinc-950 italic uppercase leading-tight truncate">
+                        {poke.name}
+                      </h3>
                     </div>
                     
-                    {/* Optional UI refinement: mapping through both types so cards show dual tags if they exist */}
-                    <div className="flex gap-1 shrink-0">
+                    {/* MODIFIED: Stack tags horizontally, with smaller mobile typography */}
+                    <div className="flex flex-wrap gap-0.5 mt-0.5 lg:mt-0 shrink-0">
                       {poke.types.map((t) => (
-                        <span key={t} className="rounded-md border-2 border-zinc-950 bg-white px-1.5 py-0.5 text-[8px] font-black uppercase shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-zinc-950">
+                        <span key={t} className="rounded border sm:border-2 border-zinc-950 bg-white px-1 py-0.5 text-[5px] sm:text-[8px] font-black uppercase text-zinc-950">
                           {t}
                         </span>
                       ))}
                     </div>
                   </div>
 
+                  {/* MODIFIED: Adjusted buttons for tight viewport widths */}
                   <Link 
                     to={`/pokedex/${poke.name.toLowerCase().replace(/ /g, '-')}`}
-                    className="mt-4 block w-full text-center border-4 border-zinc-950 bg-white text-zinc-950 py-1.5 rounded-lg text-[10px] font-black uppercase italic tracking-wider shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] bg-gradient-to-r hover:from-zinc-50 hover:to-zinc-100"
+                    className="mt-2 sm:mt-4 block w-full text-center border-2 sm:border-4 border-zinc-950 bg-white text-zinc-950 py-1 rounded-md sm:rounded-lg text-[7px] sm:text-[10px] font-black uppercase italic tracking-wider shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] sm:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] bg-gradient-to-r hover:from-zinc-50 hover:to-zinc-100"
                   >
                     OPEN LOG
                   </Link>

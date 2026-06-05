@@ -9,6 +9,9 @@ const connectDB = require('./config/db');
 const useRoutes = require('./routes/useRoutes');
 const articleRoutes = require('./routes/articleRoutes');
 
+
+
+
 const app = express();
 
 // Database Connection
@@ -50,6 +53,15 @@ app.use((req, res, next) => {
   next();
 });
 
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: "success",
+    message: "Server is running smoothly!",
+    environment: process.env.NODE_ENV || "development",
+    timestamp: new Date()
+  });
+});
+
 // Routes
 app.use('/api/users', useRoutes);
 app.use('/api/articles', articleRoutes);
@@ -62,3 +74,5 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+module.exports = app;

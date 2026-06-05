@@ -1,14 +1,14 @@
-// rubia-client\src\pages\DashboardPage\DashArticleListPage.jsx
 import React, { useState, useEffect } from 'react';
 import { 
   Box, Typography, Paper, Button, Stack, Dialog, DialogTitle, 
   DialogContent, TextField, DialogActions, MenuItem, Chip, 
-  Select, FormControl, InputLabel, IconButton, DialogContentText 
+  Select, FormControl, InputLabel, IconButton, DialogContentText, Divider 
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import ClearIcon from '@mui/icons-material/Clear';
 import { DataGrid } from '@mui/x-data-grid';
 
-// Import your centralized article service layer
 import * as articleService from '../../services/ArticleService';
 
 const COLOR_OPTIONS = [
@@ -31,6 +31,8 @@ function DashArticleListPage() {
   
   const [open, setOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
+  
+  const [selectedFile, setSelectedFile] = useState(null);
   const [form, setForm] = useState({ 
     id: '', title: '', name: '', desc: '', content: '', author: '', status: 'active', image: '', color: 'bg-zinc-500' 
   });
@@ -63,6 +65,26 @@ function DashArticleListPage() {
     }
   };
 
+  const renderArticleImage = (row) => {
+    if (row.imageBuffer && row.imageMimeType) {
+      const binaryString = typeof row.imageBuffer === 'string' 
+        ? row.imageBuffer 
+        : btoa(new Uint8Array(row.imageBuffer.data || row.imageBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+      return `data:${row.imageMimeType};base64,${binaryString}`;
+    }
+    return row.imageFallbackUrl || 'https://ik.imagekit.io/ytwzizvepv/RotomPC/placeholder.png';
+  };
+
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+    }
+  };
+
+  const handleClearFile = () => {
+    setSelectedFile(null);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -70,31 +92,27 @@ function DashArticleListPage() {
       ? form.name.trim().toLowerCase().replace(/\s+/g, '-')
       : form.title.trim().toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-');
 
-    const formattedPayload = {
-      id: form.id.trim(),
-      title: form.title.trim(),
-      name: calculatedSlug,
-      desc: form.desc.trim(),
-      author: form.author.trim(),
-      status: form.status,
-      color: form.color,
-      content: Array.isArray(form.content) 
-        ? form.content 
-        : form.content.split('\n\n').filter(p => p.trim() !== '')
-    };
+    const formData = new FormData();
+    formData.append('id', form.id.trim());
+    formData.append('title', form.title.trim());
+    formData.append('name', calculatedSlug);
+    formData.append('desc', form.desc.trim());
+    formData.append('author', form.author.trim());
+    formData.append('status', form.status);
+    formData.append('color', form.color);
+    formData.append('content', typeof form.content === 'string' ? form.content : JSON.stringify(form.content));
 
-    if (form.image.trim()) {
-      formattedPayload.image = form.image.trim();
+    if (selectedFile) {
+      formData.append('image', selectedFile);
     } else {
-      formattedPayload.image = 'https://ik.imagekit.io/ytwzizvepv/RotomPC/placeholder.png';
+      formData.append('image', form.image.trim());
     }
 
     try {
       if (selectedId) {
-        await articleService.updateArticle(selectedId, formattedPayload);
+        await articleService.updateArticle(selectedId, formData);
       } else {
-        delete formattedPayload._id; 
-        await articleService.createArticle(formattedPayload);
+        await articleService.createArticle(formData);
       }
       loadArticles();
       handleClose();
@@ -106,11 +124,17 @@ function DashArticleListPage() {
 
   const handleToggleStatus = async (row) => {
     try {
-      const updatedPayload = { 
-        ...row, 
-        status: row.status === 'active' ? 'archived' : 'active' 
-      };
-      await articleService.updateArticle(row._id, updatedPayload);
+      const formData = new FormData();
+      Object.keys(row).forEach(key => {
+        if (key === 'status') {
+          formData.append('status', row.status === 'active' ? 'archived' : 'active');
+        } else if (key === 'content') {
+          formData.append('content', Array.isArray(row.content) ? row.content.join('\n\n') : row.content);
+        } else if (key !== 'imageBuffer' && key !== 'imageMimeType') {
+          formData.append(key, row[key]);
+        }
+      });
+      await articleService.updateArticle(row._id, formData);
       loadArticles();
     } catch (err) {
       console.error("Failed to alter record status scope:", err);
@@ -120,6 +144,7 @@ function DashArticleListPage() {
   const handleClose = () => {
     setOpen(false);
     setSelectedId(null);
+    setSelectedFile(null);
     setForm({ id: '', title: '', name: '', desc: '', content: '', author: '', status: 'active', image: '', color: 'bg-zinc-500' });
   };
 
@@ -146,20 +171,27 @@ function DashArticleListPage() {
 
   const columns = [
     { field: 'id', headerName: 'ID', width: 80 },
+    { 
+      field: 'image', 
+      headerName: 'MEDIA PREVIEW', 
+      width: 130, 
+      renderCell: (p) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+          <img 
+            src={renderArticleImage(p.row)} 
+            alt="article asset" 
+            style={{ width: '45px', height: '30px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #ddd' }} 
+          />
+        </Box>
+      )
+    },
     { field: 'name', headerName: 'SLUG', width: 140, renderCell: (p) => <span style={{ fontFamily: 'monospace', color: '#666' }}>{p.value}</span> },
     { field: 'title', headerName: 'TITLE', flex: 1, renderCell: (p) => <strong style={{ color: '#1A1A1A' }}>{p.value}</strong> },
-    { 
-      field: 'content', 
-      headerName: 'PARAGRAPHS', 
-      width: 120, 
-      valueGetter: (value, row) => Array.isArray(row.content) ? row.content.length : 0,
-      renderCell: (p) => <Chip size="small" variant="outlined" label={`${p.value} items`} />
-    },
-    { field: 'desc', headerName: 'PREVIEW', width: 200 },
+    { field: 'desc', headerName: 'PREVIEW', width: 160 },
     { 
       field: 'status', 
       headerName: 'STATUS', 
-      width: 120,
+      width: 110,
       renderCell: (params) => (
         <Chip 
           label={params.value.toUpperCase()} 
@@ -191,7 +223,7 @@ function DashArticleListPage() {
                 desc: p.row.desc || '',
                 author: p.row.author || '',
                 status: p.row.status || 'active',
-                image: p.row.image || '',
+                image: p.row.imageFallbackUrl || '',
                 color: p.row.color || 'bg-zinc-500',
                 content: Array.isArray(p.row.content) ? p.row.content.join('\n\n') : p.row.content
               }); 
@@ -309,7 +341,58 @@ function DashArticleListPage() {
                 ))}
               </TextField>
             </Stack>
-            <TextField label="Image URL Source" fullWidth value={form.image} onChange={(e) => setForm({...form, image: e.target.value})} />
+
+            <Divider sx={{ my: 1 }}><Chip label="ARTICLE COVER MEDIA SOURCE" size="small" sx={{ fontWeight: 'bold' }} /></Divider>
+
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="stretch">
+              {/* Option A: Device File Upload */}
+              <Box sx={{ flex: 1, border: '2px dashed #ccc', p: 2, borderRadius: '8px', textAlign: 'center', bgcolor: selectedFile ? '#f0fdf4' : '#fafafa', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: 100 }}>
+                <input
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  id="contained-button-file"
+                  type="file"
+                  onChange={handleFileChange}
+                  disabled={!!form.image.trim() && !selectedFile}
+                />
+                <Box>
+                  <label htmlFor="contained-button-file">
+                    <Button variant="outlined" component="span" startIcon={<CloudUploadIcon />} disabled={!!form.image.trim() && !selectedFile} sx={{ color: '#1A1A1A', borderColor: '#1A1A1A', mb: 1 }}>
+                      Upload File
+                    </Button>
+                  </label>
+                  <Typography variant="caption" display="block" color="textSecondary" sx={{ px: 1 }}>
+                    {selectedFile ? `File: ${selectedFile.name}` : "Pick local file asset"}
+                  </Typography>
+                  {selectedFile && (
+                    <IconButton size="small" color="error" onClick={handleClearFile} sx={{ mt: 0.5 }}>
+                      <ClearIcon fontSize="small" /> <span style={{ fontSize: '10px', fontWeight: 'bold' }}>CLEAR</span>
+                    </IconButton>
+                  )}
+                </Box>
+              </Box>
+
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#999' }}>— OR —</Typography>
+              </Box>
+
+              {/* Option B: Direct URL Input */}
+              <Box sx={{ flex: 1.5, display: 'flex', alignItems: 'center' }}>
+                <TextField 
+                  label="Direct Image URL String" 
+                  fullWidth 
+                  variant="outlined"
+                  value={form.image} 
+                  onChange={(e) => setForm({...form, image: e.target.value})} 
+                  disabled={!!selectedFile}
+                  placeholder="https://example.com/image.png"
+                  helperText={selectedFile ? "Clear uploaded file path above to input web url reference link text" : "Paste an absolute network layout hotlink track path"}
+                />
+              </Box>
+            </Stack>
+
+            <Divider sx={{ my: 1 }} />
+
             <TextField label="Preview Description" fullWidth multiline rows={2} value={form.desc} onChange={(e) => setForm({...form, desc: e.target.value})} required />
             <TextField label="Content Blocks (Separate paragraphs using a double line break [Enter x2])" fullWidth multiline rows={6} value={form.content} onChange={(e) => setForm({...form, content: e.target.value})} required />
           </DialogContent>

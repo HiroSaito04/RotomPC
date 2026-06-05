@@ -1,3 +1,4 @@
+// rubia-client/src/pages/LandingPages/AboutPage.jsx
 import React, { useState, useEffect } from 'react';
 import Button from '../../components/Button';
 import badgeA from '../../assets/res/A.png';
@@ -6,14 +7,8 @@ import badgeC from '../../assets/res/C.png';
 import badgeD from '../../assets/res/D.png';
 
 const TRAINER_SPRITES = {
-  male: [
-    'https://ik.imagekit.io/ytwzizvepv/RotomPC/TrainerAvatar/Trainer03.png?updatedAt=1778900538799',
-    'https://ik.imagekit.io/ytwzizvepv/RotomPC/TrainerAvatar/Trainer01.png?updatedAt=1778900591810'
-  ],
-  female: [
-    'https://ik.imagekit.io/ytwzizvepv/RotomPC/TrainerAvatar/Trainer04.png?updatedAt=1778900558997',
-    'https://ik.imagekit.io/ytwzizvepv/RotomPC/TrainerAvatar/Trainer02.png?updatedAt=1778900610572'
-  ]
+  male: 'https://ik.imagekit.io/ytwzizvepv/RotomPC/TrainerAvatar/Trainer03.png?updatedAt=1778900538799',
+  female: 'https://ik.imagekit.io/ytwzizvepv/RotomPC/TrainerAvatar/Trainer04.png?updatedAt=1778900558997'
 };
 
 const AboutPage = () => {
@@ -45,12 +40,8 @@ const AboutPage = () => {
             gender: userGender
           });
 
-          setTrainerSprite(current => {
-            const options = TRAINER_SPRITES[userGender];
-            if (current && options.includes(current)) {
-              return current;            }
-            return options[0]; 
-          });
+          // Map directly to the single dedicated sprite image source matching user preference
+          setTrainerSprite(TRAINER_SPRITES[userGender]);
 
         } else {
           setUser(defaultGuest);
@@ -72,12 +63,6 @@ const AboutPage = () => {
       window.removeEventListener('local-auth-update', syncProfileData);
     };
   }, []);
-
-  const toggleTrainerSprite = () => {
-    if (!user.gender) return;
-    const pool = user.gender === 'female' ? TRAINER_SPRITES.female : TRAINER_SPRITES.male;
-    setTrainerSprite(prev => prev === pool[0] ? pool[1] : pool[0]);
-  };
 
   const badges = [
     { img: badgeA, name: 'Zephyr Badge' },
@@ -111,8 +96,7 @@ const AboutPage = () => {
                   <img 
                     src={trainerSprite} 
                     alt="Trainer" 
-                    onClick={toggleTrainerSprite}
-                    className="pb-5 relative z-20 h-[95%] w-auto object-contain transition-transform duration-700 group-hover:scale-105 cursor-pointer"
+                    className="pb-5 relative z-20 h-[95%] w-auto object-contain transition-transform duration-700 group-hover:scale-105"
                     style={{ imageRendering: 'pixelated' }}
                   />
                 ) : (
@@ -120,7 +104,6 @@ const AboutPage = () => {
                     to="/auth/signup"
                     className="absolute inset-0 z-20 flex flex-col items-center justify-center p-6 text-center group/btn border-none bg-zinc-950 hover:bg-zinc-900 transition-colors duration-300 text-white"
                   >
-                    {/* FIXED: Explicit text white definitions applied across title and description lines inside this container block */}
                     <h2 className="text-2xl font-black text-white uppercase italic tracking-tighter drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] animate-bounce leading-tight">
                       <span className="text-yellow-300">Are you a boy <br /> or a girl?</span>
                     </h2>
@@ -164,7 +147,7 @@ const AboutPage = () => {
             </p>
 
             <div className="pt-6 flex flex-wrap gap-4">
-             <Button to="/" variant="primary" size="md" className="w-full sm:w-auto">
+              <Button to="/" variant="primary" size="md" className="w-full sm:w-auto">
                 OPEN POKÉDEX
               </Button>
               <Button to="/articles" variant="secondary" size="md" className="w-full sm:w-auto">
