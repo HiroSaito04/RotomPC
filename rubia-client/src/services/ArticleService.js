@@ -1,4 +1,3 @@
-// rubia-client/src/services/ArticleService.js
 import axios from 'axios';
 import constants from '../constants';
 
@@ -8,8 +7,12 @@ const API = axios.create({
 
 export const fetchArticles = () => API.get('/');
 
-export const createArticle = (articleData) => API.post('/', articleData);
+export const createArticle = (formData) => API.post('/', formData, {
+  headers: { 'Content-Type': 'multipart/form-data' }
+});
 
-export const updateArticle = (id, articleData) => API.put(`/${id}`, articleData);
+export const updateArticle = (id, formData) => API.put(`/${id}`, formData, {
+  headers: { 'Content-Type': 'multipart/form-data' }
+});
 
 export const deleteArticle = (id) => API.delete(`/${id}`);

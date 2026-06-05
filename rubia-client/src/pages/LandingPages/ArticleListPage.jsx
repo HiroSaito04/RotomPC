@@ -1,4 +1,4 @@
-// rubia-client\src\pages\ArticleListPage\ArticleListPage.jsx
+// rubia-client/src/pages/ArticleListPage/ArticleListPage.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Button from '../../components/Button.jsx';
@@ -8,14 +8,17 @@ import ArticleList from '../../components/ArticleList.jsx';
 import * as articleService from '../../services/ArticleService';
 
 const ArticleListPage = () => {
-  const [articles, setArticles] = useState([]);
+  const [rawArticles, setRawArticles] = useState([]); // Keeps original pool intact
+  const [articles, setArticles] = useState([]);      // Filtered/Sorted list for display
+  const [activeFilter, setActiveFilter] = useState(''); // Tracking state: '' | 'latest' | 'top-rated'
   const navigate = useNavigate();
 
   useEffect(() => {
     articleService.fetchArticles()
       .then(res => {
         const visibleArticles = res.data.filter(item => item.status === 'active');
-        setArticles(visibleArticles);
+        setRawArticles(visibleArticles);
+        setArticles(visibleArticles); // Initial display configuration
       })
       .catch(err => console.error("Error connecting to live server database feed", err));
   }, []);
@@ -31,11 +34,49 @@ const ArticleListPage = () => {
     navigate('/');
   };
 
+  // Helper Engine: Convert retrieved database buffers back into valid base64 markup display targets
+  const renderArticleImage = (row) => {
+    if (row.imageBuffer && row.imageMimeType) {
+      const binaryString = typeof row.imageBuffer === 'string' 
+        ? row.imageBuffer 
+        : btoa(new Uint8Array(row.imageBuffer.data || row.imageBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+      return `data:${row.imageMimeType};base64,${binaryString}`;
+    }
+    return row.imageFallbackUrl || row.image || 'https://ik.imagekit.io/ytwzizvepv/RotomPC/placeholder.png';
+  };
+
+  // Toggle filtering logic for the Latest button
+  const toggleLatestFilter = () => {
+    if (activeFilter === 'latest') {
+      setActiveFilter('');
+      setArticles([...rawArticles]);
+    } else {
+      setActiveFilter('latest');
+      const sorted = [...rawArticles].sort((a, b) => {
+        const dateA = new Date(a.createdAt || a.date || 0);
+        const dateB = new Date(b.createdAt || b.date || 0);
+        return dateB - dateA;
+      });
+      setArticles(sorted);
+    }
+  };
+
+  // Toggle filtering logic for the Top Rated button
+  const toggleTopRatedFilter = () => {
+    if (activeFilter === 'top-rated') {
+      setActiveFilter('');
+      setArticles([...rawArticles]);
+    } else {
+      setActiveFilter('top-rated');
+      const sorted = [...rawArticles].sort((a, b) => (b.likes || 0) - (a.likes || 0));
+      setArticles(sorted);
+    }
+  };
+
   return (
     <div className="flex w-full flex-col gap-8 bg-[#f8fafc] pb-12 font-sans selection:bg-[#3b4cca] selection:text-white">
       {/* Header: PokeSocial Feed Branding */}
       <section className="border-b-8 border-[#2a3a9d] bg-[#3b4cca] px-4 py-10 text-white sm:px-6 lg:px-8 shadow-inner relative overflow-hidden">
-        {/* Decorative Pokéball Background Element */}
         <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/5 border-[20px] border-white/10" />
         
         <div className="relative z-10 max-w-4xl mx-auto">
@@ -49,19 +90,8 @@ const ArticleListPage = () => {
             The #1 social hub for field reports, berry-gathering tips, and legendary sightings across all regions.
           </p>
           <div className="mt-8 flex flex-wrap gap-4">
-            <Button 
-              onClick={handleLogOff} 
-              variant="danger"
-              size="md"
-            >
-              LOG OFF
-            </Button>
-            <Button 
-              variant="secondary"
-              size="md"
-            >
-              POST UPDATE
-            </Button>
+            <Button onClick={handleLogOff} variant="danger" size="md">LOG OFF</Button>
+            <Button variant="secondary" size="md">POST UPDATE</Button>
           </div>
         </div>
       </section>
@@ -73,29 +103,42 @@ const ArticleListPage = () => {
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#ffcb05] border-2 border-zinc-900 shadow-[3px_3px_0px_0px_rgba(24,24,27,1)]">
               <span className="text-2xl">📡</span>
             </div>
-            <h2 className="text-2xl font-black text-zinc-900 uppercase italic tracking-tighter">Trending Reports</h2>
+            <h2 className="text-2xl !text-black font-black uppercase italic tracking-tighter">
+              Trending Reports
+            </h2>
           </div>
           <div className="flex gap-2">
             <Button 
-              variant="secondary" 
+              onClick={toggleLatestFilter}
+              variant={activeFilter === 'latest' ? 'primary' : 'secondary'} 
               size="sm"
-              className="px-4 py-2"
+              className={`px-4 py-2 text-xs transition-all ${
+                activeFilter === 'latest' ? 'bg-zinc-900 text-white' : ''
+              }`}
             >
-              Latest
+              {activeFilter === 'latest' ? '✓ Latest' : 'Latest'}
             </Button>
             
             <Button 
-              variant="primary" 
+              onClick={toggleTopRatedFilter}
+              variant={activeFilter === 'top-rated' ? 'primary' : 'secondary'} 
               size="sm"
-              className="px-4 py-2 bg-[#3b4cca] text-white border-zinc-900 hover:bg-[#2a3a9d]" 
+              className={`px-4 py-2 text-xs transition-all ${
+                activeFilter === 'top-rated' ? 'bg-[#3b4cca] text-white border-zinc-900 hover:bg-[#2a3a9d]' : ''
+              }`} 
             >
-              Top Rated
+              {activeFilter === 'top-rated' ? '✓ Top Rated' : 'Top Rated'}
             </Button>
           </div>
         </div>
 
-        {/* Call Article Here*/}
-        <ArticleList articles={articles} />
+        {articles.length > 0 ? (
+          <ArticleList articles={articles} getImage={renderArticleImage} />
+        ) : (
+          <div className="text-center py-12 text-zinc-500 font-bold uppercase italic tracking-tight">
+            No visible reports streaming on this frequency.
+          </div>
+        )}
       </section>
 
       {/* Tip Banner */}

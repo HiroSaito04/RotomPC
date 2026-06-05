@@ -1,4 +1,4 @@
-// rubia-client\src\pages\Dashboard\DashboardPage.jsx
+// rubia-client/src/pages/Dashboard/DashboardPage.jsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { Typography, Box, Paper, Grid, CircularProgress } from '@mui/material';
 import { BarChart } from '@mui/x-charts/BarChart';
@@ -82,7 +82,7 @@ function DashboardPage() {
   }, [users]);
 
   const PAPER_STYLE = {
-    p: 3,
+    p: { xs: 2, sm: 3 },
     border: '2px solid #1A1A1A',
     boxShadow: '4px 4px 0px #000',
     borderRadius: 2,
@@ -98,70 +98,85 @@ function DashboardPage() {
   }
 
   return (
-    <Box sx={{ p: 1 }}>
-      <Typography variant="h4" sx={{ fontWeight: 900, mb: 4, fontStyle: 'italic', textTransform: 'uppercase' }}>
+    <Box sx={{ p: { xs: 0, sm: 1 } }}>
+      <Typography 
+        variant="h4" 
+        sx={{ 
+          fontWeight: 900, 
+          mb: 4, 
+          fontStyle: 'italic', 
+          textTransform: 'uppercase',
+          fontSize: { xs: '1.75rem', sm: '2.125rem' }
+        }}
+      >
         DASHBOARD <span style={{ color: '#cc0000' }}>OVERVIEW</span>
       </Typography>
 
       {/* 1. Summary Cards */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
+      <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ mb: 4 }}>
+        <Grid item xs={12} sm={6} md={4}>
           <Paper sx={PAPER_STYLE}>
-            <Typography variant="overline" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>Total Users</Typography>
-            <Typography variant="h3" sx={{ fontWeight: 900 }}>{totalUsers}</Typography>
+            <Typography variant="overline" sx={{ fontWeight: 'bold', color: 'text.secondary', display: 'block', lineHeight: 1.2, mb: 0.5 }}>Total Users</Typography>
+            <Typography variant="h3" sx={{ fontWeight: 900, fontSize: { xs: '2.25rem', sm: '3rem' } }}>{totalUsers}</Typography>
           </Paper>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={4}>
           <Paper sx={PAPER_STYLE}>
-            <Typography variant="overline" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>Total Trainers</Typography>
-            <Typography variant="h3" sx={{ fontWeight: 900, color: '#ff1c1c' }}>{totalTrainers}</Typography>
+            <Typography variant="overline" sx={{ fontWeight: 'bold', color: 'text.secondary', display: 'block', lineHeight: 1.2, mb: 0.5 }}>Total Trainers</Typography>
+            <Typography variant="h3" sx={{ fontWeight: 900, color: '#ff1c1c', fontSize: { xs: '2.25rem', sm: '3rem' } }}>{totalTrainers}</Typography>
           </Paper>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={12} md={4}>
           <Paper sx={PAPER_STYLE}>
-            <Typography variant="overline" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>Average User Age</Typography>
+            <Typography variant="overline" sx={{ fontWeight: 'bold', color: 'text.secondary', display: 'block', lineHeight: 1.2, mb: 0.5 }}>Average User Age</Typography>
             <Typography variant="h3" sx={{ fontWeight: 900, color: '#cc0000' }}>{averageAge}</Typography>
           </Paper>
         </Grid>
       </Grid>
 
       {/* 2. Charts Section */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
+      <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ mb: 4 }}>
         <Grid item xs={12} lg={7}>
           <Paper sx={PAPER_STYLE}>
-            <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2 }}>MONTHLY POSTS (2026)</Typography>
-            <Box sx={{ width: '100%' }}>
-              <BarChart
-                xAxis={[{ scaleType: 'band', data: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'] }]}
-                series={[{ data: [4, 6, 12, 8, 5, 10], label: 'Articles', color: '#1A1A1A' }]}
-                height={300}
-                width={600}
-                margin={{ top: 20, bottom: 30, left: 40, right: 10 }}
-              />
+            <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, fontSize: { xs: '0.9rem', sm: '1.25rem' } }}>MONTHLY POSTS (2026)</Typography>
+            {/* Box container layout controls local chart overflow boundaries on mobile viewports */}
+            <Box sx={{ width: '100%', overflowX: 'auto', pt: 1 }}>
+              <Box sx={{ minWidth: 500, width: '100%' }}>
+                <BarChart
+                  xAxis={[{ scaleType: 'band', data: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'] }]}
+                  series={[{ data: [4, 6, 12, 8, 5, 10], label: 'Articles', color: '#1A1A1A' }]}
+                  height={300}
+                  margin={{ top: 20, bottom: 30, left: 40, right: 10 }}
+                />
+              </Box>
             </Box>
           </Paper>
         </Grid>
         <Grid item xs={12} lg={5}>
           <Paper sx={{ ...PAPER_STYLE, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <Typography variant="h6" sx={{ fontWeight: 'bold', width: '100%', mb: 2 }}>USER ROLES</Typography>
-            <PieChart
-              series={[{
-                data: userDistribution,
-                innerRadius: 50,
-                paddingAngle: 5,
-              }]}
-              height={300}
-              width={400}
-              margin={{ right: 20, left: 20 }}
-            />
+            <Typography variant="h6" sx={{ fontWeight: 'bold', width: '100%', mb: 2, fontSize: { xs: '0.9rem', sm: '1.25rem' } }}>USER ROLES</Typography>
+            <Box sx={{ width: '100%', overflowX: 'auto', display: 'flex', justifyContent: 'center' }}>
+              <Box sx={{ minWidth: 360, display: 'flex', justifyContent: 'center' }}>
+                <PieChart
+                  series={[{
+                    data: userDistribution,
+                    innerRadius: 50,
+                    paddingAngle: 5,
+                  }]}
+                  height={300}
+                  width={380}
+                  margin={{ right: 10, left: 10 }}
+                />
+              </Box>
+            </Box>
           </Paper>
         </Grid>
       </Grid>
 
       {/* 3. DataGrid Section */}
       <Paper sx={{ ...PAPER_STYLE, mb: 4 }}>
-        <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2 }}>TRAINERS OVERVIEW</Typography>
-        <Box sx={{ height: 400, width: '100%' }}>
+        <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, fontSize: { xs: '0.9rem', sm: '1.25rem' } }}>TRAINERS OVERVIEW</Typography>
+        <Box sx={{ height: 400, width: '100%', overflowX: 'auto' }}>
           <DataGrid
             rows={trainersOnlyRows}
             columns={trainerColumns}
@@ -169,15 +184,19 @@ function DashboardPage() {
             initialState={{ pagination: { paginationModel: { pageSize: 5 } } }}
             pageSizeOptions={[5]}
             disableRowSelectionOnClick
-            sx={{ border: 'none' }}
+            sx={{ 
+              border: 'none',
+              // Ensures readability of text elements inside dense structural grid tables on small devices
+              minWidth: 600 
+            }}
           />
         </Box>
       </Paper>
 
       {/* 4. Map Section */}
       <Paper sx={{ ...PAPER_STYLE, overflow: 'hidden' }}>
-        <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2 }}>REGIONAL SCANNER (GPS)</Typography>
-        <Box sx={{ height: 400, width: '100%', borderRadius: 1, overflow: 'hidden', border: '1px solid #ddd' }}>
+        <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, fontSize: { xs: '0.9rem', sm: '1.25rem' } }}>REGIONAL SCANNER (GPS)</Typography>
+        <Box sx={{ height: { xs: 300, sm: 400 }, width: '100%', borderRadius: 1, overflow: 'hidden', border: '1px solid #ddd' }}>
           <MapContainer 
             center={mapCoords} 
             zoom={15} 

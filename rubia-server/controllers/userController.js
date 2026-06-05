@@ -1,4 +1,3 @@
-// rubia-server\controllers\userController.js
 const User = require('../models/User');
 const bcrypt = require('bcryptjs'); 
 const jwt = require('jsonwebtoken'); 
@@ -9,7 +8,7 @@ const validateUserInput = (data, isUpdate = false) => {
   const usernameRegex = /^[a-zA-Z0-9._]+$/;
   const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{}|;':",./<>?])[A-Za-z\d!@#$%^&*()_+\-=[\]{}|;':",./<>?]{8,72}$/;
 
-  // 1. Personal Information (Only validate if present during updates, or always for new registrations)
+  // 1. Personal Information Validation
   if (!isUpdate || data.firstName !== undefined) {
     if (!data.firstName || data.firstName.trim().length < 2 || data.firstName.length > 50 || !nameRegex.test(data.firstName)) 
       errors.push("Invalid First Name (2-50 chars, no numbers).");
@@ -31,7 +30,7 @@ const validateUserInput = (data, isUpdate = false) => {
       errors.push("Gender must be Male, Female, or Other.");
   }
 
-  // 2. Contact & Account
+  // 2. Contact & Account Validation
   if (!isUpdate || data.contactNumber !== undefined) {
     if (!/^09\d{9}$/.test(data.contactNumber)) 
       errors.push("Contact Number must be 11 digits starting with 09.");
@@ -49,12 +48,10 @@ const validateUserInput = (data, isUpdate = false) => {
 
   // 3. Conditional Password Validation
   if (isUpdate) {
-    // Editing Mode: Only validate if a new password string has actually been provided
     if (data.password && data.password.length < 8) {
       errors.push("The new updated password must be at least 8 characters long.");
     }
   } else {
-    // Registration Mode: Must exist and match strict complexity rules
     if (!data.password || !passwordRegex.test(data.password)) {
       errors.push("Password must be 8-72 characters and include at least one uppercase letter, one lowercase letter, one number, and one special character.");
     }
@@ -115,22 +112,18 @@ const createUser = async (req, res) => {
 
 const updateUser = async (req, res) => {
   try {
-    // 1. Run update-specific validation on incoming updates
     const validationErrors = validateUserInput(req.body, true);
     if (validationErrors.length > 0) {
       return res.status(400).json({ message: validationErrors.join(" ") });
     }
 
-    // 2. Sanitization updates if fields exist
     if (req.body.email) req.body.email = req.body.email.toLowerCase().trim();
     if (req.body.firstName) req.body.firstName = req.body.firstName.trim();
     if (req.body.lastName) req.body.lastName = req.body.lastName.trim();
 
-    // 3. Hash password only if a new valid character string has been typed
     if (req.body.password && req.body.password.trim() !== '') {
       req.body.password = await bcrypt.hash(req.body.password, 10);
     } else {
-      // Remove empty password field to ensure we do not clear out or break the old hash in DB
       delete req.body.password;
     }
 
@@ -150,7 +143,6 @@ const deleteUser = async (req, res) => {
     const targetUserId = req.params.id;
     let requestingUserId = req.headers['x-user-id'];
 
-    // Convert stringified nulls/undefined values back to true falsy states
     if (requestingUserId === 'null' || requestingUserId === 'undefined') {
       requestingUserId = null;
     }
