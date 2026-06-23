@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <path d="M 98.986 6.485 L 144.697 81.351 C 175.171 81.351 190.408 97.989 190.408 131.262 L 190.408 168.696 C 190.408 185.333 180.25 193.651 159.934 193.651 L 38.038 193.651 C 17.722 193.651 7.564 185.333 7.564 168.696 L 7.564 131.262 C 7.564 97.989 22.801 81.351 53.275 81.351 L 98.986 6.485 Z" fill="#E63946" stroke="#264653" stroke-width="4" style=""/>
+  <rect x="38.038" y="106.307" width="121.896" height="62.389" rx="5" fill="#F1FAEE" stroke="#264653" stroke-width="3" style=""/>
+  <ellipse cx="68.512" cy="100.069" rx="15.237" ry="18.716" fill="#F1FAEE" stroke="#264653" stroke-width="2" style=""/>
+  <ellipse cx="129.46" cy="100.069" rx="15.237" ry="18.716" fill="#F1FAEE" stroke="#264653" stroke-width="2" style=""/>
+  <path d="M 76.131 125.024 C 91.368 133.342 106.605 133.342 121.842 125.024" stroke="#264653" stroke-width="2" fill="none" style=""/>
+</svg>
