@@ -6,15 +6,17 @@ const articleSchema = new mongoose.Schema({
   title: { type: String, required: true },
   desc: { type: String }, 
   content: { type: [String], required: true }, 
-  author: { type: String, required: true },
+  
+  // ─── TRACKING FIELDS FIXED ──────────────────────────────────────────
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  author: { type: String, required: true }, 
   status: { type: String, enum: ['active', 'archived'], default: 'active' }, 
   
-  // Storage fields for embedded binary database payloads
   imageBuffer: { type: Buffer },
   imageMimeType: { type: String },
-  imageFallbackUrl: { type: String }, // Used if the user opts to submit a web link instead of a file
+  imageUrl: { type: String },
 
-  color: { type: String, default: 'bg-zinc-500' },
+  color: { type: String, default: 'bg-zinc-800' },
   date: { type: String, default: () => new Date().toISOString().split('T')[0] }
 }, { timestamps: true });
 

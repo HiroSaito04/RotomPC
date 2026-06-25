@@ -129,7 +129,7 @@ const HomePage = () => {
           <div className="space-y-4 md:space-y-6 text-center lg:text-left flex flex-col items-center lg:items-start">
             <div className="inline-block rounded-md bg-zinc-900 px-3 py-1 shadow-lg">
               <p className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.4em] text-yellow-400">
-                System Version 8.0.2 // KANTO
+                System Version 3.0.5 // PALDEA
               </p>
             </div>
             

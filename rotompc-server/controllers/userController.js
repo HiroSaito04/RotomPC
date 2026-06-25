@@ -81,8 +81,10 @@ const createUser = async (req, res) => {
     email = email.toLowerCase().trim();
     firstName = firstName.trim();
     lastName = lastName.trim();
-    const finalUsername = (username || `${firstName}${lastName}${Math.floor(100 + Math.random() * 900)}`)
-                            .toLowerCase().replace(/\s/g, '');
+    const finalUsername = username && username.trim() !== ''
+  ? username.trim()
+  : `${firstName}${lastName}${Math.floor(100 + Math.random() * 900)}`;
+
 
     const existingUser = await User.findOne({ $or: [{ email }, { username: finalUsername }] });
     if (existingUser) {

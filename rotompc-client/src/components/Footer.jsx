@@ -57,7 +57,7 @@ const Footer = () => {
             S/N: 8008-5110-MP
           </div>
           <p className="text-[7px] sm:text-[9px] font-black uppercase text-zinc-400 mt-1 leading-none">
-            v3.0.4 // © 2026
+            v3.0.5 // © 2026
           </p>
         </div>
 

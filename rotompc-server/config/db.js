@@ -7,6 +7,8 @@ const connectDB = async () => {
 
         console.log(`MongoDB connected : ${conn.connection.host}`);
 
+
+        console.log("Connected database name:", mongoose.connection.name);
         // Use the connection handle directly to reliably extract the active DB driver reference
         const dbInstance = conn.connection.db;
         
