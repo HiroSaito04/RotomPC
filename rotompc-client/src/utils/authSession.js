@@ -9,13 +9,29 @@ export const saveAuthSession = (data) => {
     throw new Error("Invalid authentication response.");
   }
 
-  localStorage.setItem("token", data.token);
+  localStorage.setItem(
+    "token",
 
-  localStorage.setItem("id", String(data.id));
+    data.token,
+  );
 
-  localStorage.setItem("role", data.role || "trainer");
+  localStorage.setItem(
+    "id",
 
-  localStorage.setItem("firstName", data.firstName || "");
+    String(data.id),
+  );
+
+  localStorage.setItem(
+    "role",
+
+    data.role || "trainer",
+  );
+
+  localStorage.setItem(
+    "firstName",
+
+    data.firstName || "",
+  );
 
   const userPayload = {
     id: data.id,
@@ -38,6 +54,7 @@ export const saveAuthSession = (data) => {
 
     favoritePokemon: data.favoritePokemon || {
       id: null,
+
       name: "",
     },
 
@@ -48,13 +65,19 @@ export const saveAuthSession = (data) => {
     profileCompleted: data.profileCompleted !== false,
   };
 
-  localStorage.setItem("user", JSON.stringify(userPayload));
+  localStorage.setItem(
+    "user",
+
+    JSON.stringify(userPayload),
+  );
 
   /*
-   * Lets NavBar and other components
-   * react immediately to login/logout
-   * without waiting for storage events.
+   * Lets NavBar and other
+   * components react immediately
+   * without waiting for the
+   * browser storage event.
    */
+
   window.dispatchEvent(new Event("local-auth-update"));
 
   return userPayload;
@@ -66,19 +89,15 @@ export const saveAuthSession = (data) => {
 
 export const getAuthDestination = (data) => {
   /*
-   * Google/Apple users who still need
-   * required trainer information.
+   * Google/Facebook users
+   * who still need required
+   * Trainer information.
    */
+
   if (data?.profileCompleted === false) {
     return "/auth/complete-profile";
   }
 
-  /*
-   * Trainers use the normal site.
-   *
-   * Admin/professor/editor accounts
-   * enter the dashboard.
-   */
   if (data?.role === "trainer" || !data?.role) {
     return "/";
   }
@@ -118,9 +137,13 @@ export const isAuthenticated = () => Boolean(getAuthToken());
 
 export const clearAuthSession = () => {
   localStorage.removeItem("token");
+
   localStorage.removeItem("id");
+
   localStorage.removeItem("role");
+
   localStorage.removeItem("firstName");
+
   localStorage.removeItem("user");
 
   window.dispatchEvent(new Event("local-auth-update"));

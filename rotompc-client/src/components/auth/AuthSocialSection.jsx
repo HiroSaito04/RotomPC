@@ -2,7 +2,13 @@
 
 import SocialAuthButtons from "@/components/auth/SocialAuthButtons";
 
-const AuthSocialSection = ({ mode, onAuthenticated, onError }) => {
+const AuthSocialSection = ({
+  mode,
+
+  onAuthenticated,
+
+  onError,
+}) => {
   return (
     <>
       {/* ===================================================
@@ -12,6 +18,7 @@ const AuthSocialSection = ({ mode, onAuthenticated, onError }) => {
       <div
         className="
           my-7
+
           flex
           items-center
           gap-3
@@ -21,6 +28,7 @@ const AuthSocialSection = ({ mode, onAuthenticated, onError }) => {
           className="
             h-px
             flex-1
+
             bg-zinc-200
           "
         />
@@ -44,13 +52,14 @@ const AuthSocialSection = ({ mode, onAuthenticated, onError }) => {
           className="
             h-px
             flex-1
+
             bg-zinc-200
           "
         />
       </div>
 
       {/* ===================================================
-          ICON-ONLY PROVIDERS
+          GOOGLE + FACEBOOK
       ==================================================== */}
 
       <SocialAuthButtons

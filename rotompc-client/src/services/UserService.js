@@ -1,11 +1,17 @@
 // rotompc-client/src/services/UserService.js
 
 import axios from "axios";
+
 import apiConfig from "@/config/api";
+
+/* =========================================================
+   API
+========================================================= */
 
 const API = axios.create({
   baseURL: `${apiConfig.HOST}/users`,
 });
+
 /* =========================================================
    AUTHORIZATION
 ========================================================= */
@@ -30,12 +36,27 @@ API.interceptors.request.use(
 
 export const loginUser = (credentials) => API.post("/login", credentials);
 
+/* ---------------------------------------------------------
+   GOOGLE
+
+   Receives Google Identity Services ID token.
+--------------------------------------------------------- */
+
 export const googleAuth = (credential) =>
   API.post("/auth/google", {
     credential,
   });
 
-export const appleAuth = (payload) => API.post("/auth/apple", payload);
+/* ---------------------------------------------------------
+   FACEBOOK
+
+   Receives Facebook user access token.
+--------------------------------------------------------- */
+
+export const facebookAuth = (accessToken) =>
+  API.post("/auth/facebook", {
+    accessToken,
+  });
 
 /* =========================================================
    USERS

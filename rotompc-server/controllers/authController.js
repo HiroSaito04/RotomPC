@@ -1,18 +1,36 @@
 // rotompc-server/controllers/authController.js
 
 const bcrypt = require("bcryptjs");
+
 const { OAuth2Client } = require("google-auth-library");
 
 const User = require("../models/User");
 
 const {
   createUniqueTrainerCode,
+
   createUniqueUsername,
+
   ensureTrainerCode,
+
   makeSessionResponse,
 } = require("../utils/userHelpers");
 
+/* =========================================================
+   GOOGLE CLIENT
+========================================================= */
+
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+/* =========================================================
+   SOCIAL NAME SANITIZER
+========================================================= */
+
+const sanitizeSocialName = (value) =>
+  String(value || "")
+    .replace(/[^A-Za-z\s\-']/g, "")
+    .trim()
+    .slice(0, 50);
 
 /* =========================================================
    GOOGLE AUTH
@@ -38,6 +56,7 @@ const googleAuth = async (req, res) => {
 
     const ticket = await googleClient.verifyIdToken({
       idToken: credential,
+
       audience: process.env.GOOGLE_CLIENT_ID,
     });
 
@@ -54,12 +73,20 @@ const googleAuth = async (req, res) => {
     const email = String(payload.email).toLowerCase().trim();
 
     let user = await User.findOne({
-      $or: [{ googleId }, { email }],
+      $or: [
+        {
+          googleId,
+        },
+
+        {
+          email,
+        },
+      ],
     });
 
     /* -----------------------------------------------------
-       NEW GOOGLE USER
-    ----------------------------------------------------- */
+         NEW GOOGLE USER
+      ----------------------------------------------------- */
 
     if (!user) {
       const username = await createUniqueUsername(email.split("@")[0]);
@@ -67,25 +94,29 @@ const googleAuth = async (req, res) => {
       const trainerCode = await createUniqueTrainerCode();
 
       user = await User.create({
-        firstName: String(payload.given_name || "").trim(),
+        firstName: sanitizeSocialName(payload.given_name),
 
-        lastName: String(payload.family_name || "").trim(),
+        lastName: sanitizeSocialName(payload.family_name),
 
         email,
+
         username,
 
         googleId,
 
         role: "trainer",
+
         isActive: true,
 
         trainerCode,
 
         bio: "",
+
         region: "",
 
         favoritePokemon: {
           id: null,
+
           name: "",
         },
 
@@ -94,15 +125,16 @@ const googleAuth = async (req, res) => {
         profileVisibility: "public",
 
         /*
-         * Google does not provide
-         * age/gender/contact details.
+         * Google does not
+         * supply the remaining
+         * required Trainer data.
          */
         profileCompleted: false,
       });
     } else {
       /* ---------------------------------------------------
-         LINK GOOGLE TO EXISTING ACCOUNT
-      --------------------------------------------------- */
+           LINK GOOGLE TO EXISTING ACCOUNT
+        --------------------------------------------------- */
 
       if (user.googleId && String(user.googleId) !== googleId) {
         return res.status(409).json({
@@ -114,17 +146,12 @@ const googleAuth = async (req, res) => {
         user.googleId = googleId;
       }
 
-      /*
-       * Fill name only when currently
-       * missing. Never overwrite a
-       * trainer's existing name.
-       */
       if (!user.firstName && payload.given_name) {
-        user.firstName = String(payload.given_name).trim();
+        user.firstName = sanitizeSocialName(payload.given_name);
       }
 
       if (!user.lastName && payload.family_name) {
-        user.lastName = String(payload.family_name).trim();
+        user.lastName = sanitizeSocialName(payload.family_name);
       }
 
       if (!user.trainerCode) {
@@ -151,211 +178,254 @@ const googleAuth = async (req, res) => {
 };
 
 /* =========================================================
-   APPLE AUTH HELPERS
+   FACEBOOK CONFIG
 ========================================================= */
 
-let appleJWKS = null;
+const getFacebookConfig = () => {
+  const appId = String(process.env.FACEBOOK_APP_ID || "").trim();
 
-const getAppleTools = async () => {
-  const { SignJWT, importPKCS8, createRemoteJWKSet, jwtVerify } =
-    await import("jose");
+  const appSecret = String(process.env.FACEBOOK_APP_SECRET || "").trim();
 
-  if (!appleJWKS) {
-    appleJWKS = createRemoteJWKSet(
-      new URL("https://appleid.apple.com/auth/keys"),
-    );
+  const graphVersion = String(process.env.FACEBOOK_GRAPH_VERSION || "").trim();
+
+  if (!appId || !appSecret || !graphVersion) {
+    const error = new Error("Facebook authentication is not configured.");
+
+    error.code = "FACEBOOK_CONFIG";
+
+    throw error;
+  }
+
+  if (!/^v\d+\.\d+$/.test(graphVersion)) {
+    const error = new Error("FACEBOOK_GRAPH_VERSION is invalid.");
+
+    error.code = "FACEBOOK_CONFIG";
+
+    throw error;
   }
 
   return {
-    SignJWT,
-    importPKCS8,
-    jwtVerify,
-    appleJWKS,
+    appId,
+
+    appSecret,
+
+    graphVersion,
   };
 };
 
-const validateAppleConfig = () => {
-  const required = [
-    "APPLE_CLIENT_ID",
-    "APPLE_TEAM_ID",
-    "APPLE_KEY_ID",
-    "APPLE_PRIVATE_KEY",
-    "APPLE_REDIRECT_URI",
-  ];
-
-  const missing = required.filter((key) => !process.env[key]);
-
-  if (missing.length > 0) {
-    throw new Error(`Missing Apple configuration: ${missing.join(", ")}`);
-  }
-};
-
-const createAppleClientSecret = async () => {
-  validateAppleConfig();
-
-  const { SignJWT, importPKCS8 } = await getAppleTools();
-
-  const privateKey = process.env.APPLE_PRIVATE_KEY.replace(/\\n/g, "\n");
-
-  const key = await importPKCS8(privateKey, "ES256");
-
-  return new SignJWT({})
-    .setProtectedHeader({
-      alg: "ES256",
-      kid: process.env.APPLE_KEY_ID,
-    })
-    .setIssuer(process.env.APPLE_TEAM_ID)
-    .setAudience("https://appleid.apple.com")
-    .setSubject(process.env.APPLE_CLIENT_ID)
-    .setIssuedAt()
-    .setExpirationTime("5m")
-    .sign(key);
-};
-
-const sanitizeAppleName = (value) =>
-  String(value || "")
-    .replace(/[^A-Za-z\s\-']/g, "")
-    .trim()
-    .slice(0, 50);
-
 /* =========================================================
-   APPLE AUTH
+   FACEBOOK FETCH JSON
 ========================================================= */
 
-const appleAuth = async (req, res) => {
+const facebookFetchJson = async (url) => {
+  const response = await fetch(url, {
+    method: "GET",
+
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  return {
+    response,
+
+    data,
+  };
+};
+
+/* =========================================================
+   VERIFY FACEBOOK ACCESS TOKEN
+========================================================= */
+
+const verifyFacebookAccessToken = async (accessToken) => {
+  const {
+    appId,
+
+    appSecret,
+
+    graphVersion,
+  } = getFacebookConfig();
+
+  const appAccessToken = `${appId}|${appSecret}`;
+
+  /* -----------------------------------------------------
+       DEBUG USER TOKEN
+    ----------------------------------------------------- */
+
+  const debugUrl = new URL(
+    `https://graph.facebook.com/${graphVersion}/debug_token`,
+  );
+
+  debugUrl.searchParams.set(
+    "input_token",
+
+    accessToken,
+  );
+
+  debugUrl.searchParams.set(
+    "access_token",
+
+    appAccessToken,
+  );
+
+  const {
+    response: debugResponse,
+
+    data: debugResult,
+  } = await facebookFetchJson(debugUrl);
+
+  const debugData = debugResult?.data;
+
+  if (
+    !debugResponse.ok ||
+    !debugData?.is_valid ||
+    !debugData?.user_id ||
+    String(debugData.app_id) !== String(appId)
+  ) {
+    const error = new Error("Facebook access token is invalid.");
+
+    error.code = "FACEBOOK_TOKEN";
+
+    throw error;
+  }
+
+  /* -----------------------------------------------------
+       LOAD USER PROFILE
+    ----------------------------------------------------- */
+
+  const profileUrl = new URL(`https://graph.facebook.com/${graphVersion}/me`);
+
+  profileUrl.searchParams.set(
+    "fields",
+
+    ["id", "first_name", "last_name", "name", "email"].join(","),
+  );
+
+  profileUrl.searchParams.set(
+    "access_token",
+
+    accessToken,
+  );
+
+  const {
+    response: profileResponse,
+
+    data: profile,
+  } = await facebookFetchJson(profileUrl);
+
+  if (!profileResponse.ok || !profile?.id) {
+    const error = new Error("Facebook profile could not be loaded.");
+
+    error.code = "FACEBOOK_TOKEN";
+
+    throw error;
+  }
+
+  /*
+   * The profile returned by /me
+   * must belong to the user ID
+   * from /debug_token.
+   */
+
+  if (String(profile.id) !== String(debugData.user_id)) {
+    const error = new Error(
+      "Facebook identity did not match the verified access token.",
+    );
+
+    error.code = "FACEBOOK_TOKEN";
+
+    throw error;
+  }
+
+  return profile;
+};
+
+/* =========================================================
+   FACEBOOK AUTH
+========================================================= */
+
+const facebookAuth = async (req, res) => {
   try {
-    const { code, nonce, user: appleUser } = req.body;
+    const accessToken = String(req.body?.accessToken || "").trim();
 
-    if (!code) {
+    if (!accessToken) {
       return res.status(400).json({
-        message: "Apple authorization code is required.",
+        message: "Facebook access token is required.",
       });
     }
 
-    validateAppleConfig();
+    /* ---------------------------------------------------
+         VALIDATE TOKEN WITH META
+      --------------------------------------------------- */
 
-    const clientSecret = await createAppleClientSecret();
+    const profile = await verifyFacebookAccessToken(accessToken);
 
-    const body = new URLSearchParams({
-      client_id: process.env.APPLE_CLIENT_ID,
+    const facebookId = String(profile.id);
 
-      client_secret: clientSecret,
-
-      code,
-
-      grant_type: "authorization_code",
-
-      redirect_uri: process.env.APPLE_REDIRECT_URI,
-    });
-
-    const appleResponse = await fetch("https://appleid.apple.com/auth/token", {
-      method: "POST",
-
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-
-      body: body.toString(),
-    });
-
-    const tokenResult = await appleResponse.json();
-
-    if (!appleResponse.ok || !tokenResult.id_token) {
-      console.error("Apple token exchange error:", tokenResult);
-
-      return res.status(401).json({
-        message: "Apple authorization could not be verified.",
-      });
-    }
-
-    const { jwtVerify, appleJWKS: jwks } = await getAppleTools();
-
-    const { payload } = await jwtVerify(tokenResult.id_token, jwks, {
-      issuer: "https://appleid.apple.com",
-
-      audience: process.env.APPLE_CLIENT_ID,
-    });
-
-    if (!payload?.sub) {
-      return res.status(401).json({
-        message: "Apple identity is invalid.",
-      });
-    }
+    const email = String(profile.email || "")
+      .toLowerCase()
+      .trim();
 
     /*
-     * Verify the nonce when Apple
-     * returns one.
+     * RotomPC requires email
+     * as the unique account
+     * identity.
      */
-    if (nonce && String(payload.nonce || "") !== String(nonce)) {
-      return res.status(401).json({
-        message: "Apple authentication nonce did not match.",
-      });
-    }
 
-    const appleId = String(payload.sub);
-
-    const email = payload.email
-      ? String(payload.email).toLowerCase().trim()
-      : null;
-
-    if (email) {
-      const emailVerified =
-        payload.email_verified === true || payload.email_verified === "true";
-
-      if (!emailVerified) {
-        return res.status(401).json({
-          message: "Apple email address could not be verified.",
-        });
-      }
-    }
-
-    const searchConditions = [{ appleId }];
-
-    if (email) {
-      searchConditions.push({
-        email,
+    if (!email) {
+      return res.status(400).json({
+        message:
+          "Facebook did not provide an email address. Please allow email access and try again.",
       });
     }
 
     let user = await User.findOne({
-      $or: searchConditions,
+      $or: [
+        {
+          facebookId,
+        },
+
+        {
+          email,
+        },
+      ],
     });
 
     /* -----------------------------------------------------
-       NEW APPLE USER
-    ----------------------------------------------------- */
+         NEW FACEBOOK USER
+      ----------------------------------------------------- */
 
     if (!user) {
-      if (!email) {
-        return res.status(400).json({
-          message: "Apple did not provide an email address for this account.",
-        });
-      }
-
       const username = await createUniqueUsername(email.split("@")[0]);
 
       const trainerCode = await createUniqueTrainerCode();
 
       user = await User.create({
-        firstName: sanitizeAppleName(appleUser?.name?.firstName),
+        firstName: sanitizeSocialName(profile.first_name),
 
-        lastName: sanitizeAppleName(appleUser?.name?.lastName),
+        lastName: sanitizeSocialName(profile.last_name),
 
         email,
+
         username,
 
-        appleId,
+        facebookId,
 
         role: "trainer",
+
         isActive: true,
 
         trainerCode,
 
         bio: "",
+
         region: "",
 
         favoritePokemon: {
           id: null,
+
           name: "",
         },
 
@@ -363,33 +433,36 @@ const appleAuth = async (req, res) => {
 
         profileVisibility: "public",
 
+        /*
+         * Facebook does not
+         * provide RotomPC's
+         * age/gender/contact
+         * requirements.
+         */
         profileCompleted: false,
       });
     } else {
       /* ---------------------------------------------------
-         LINK EXISTING USER
-      --------------------------------------------------- */
+           LINK FACEBOOK TO EXISTING ACCOUNT
+        --------------------------------------------------- */
 
-      if (user.appleId && String(user.appleId) !== appleId) {
+      if (user.facebookId && String(user.facebookId) !== facebookId) {
         return res.status(409).json({
-          message: "This email is already connected to another Apple account.",
+          message:
+            "This email is already connected to another Facebook account.",
         });
       }
 
-      if (!user.appleId) {
-        user.appleId = appleId;
+      if (!user.facebookId) {
+        user.facebookId = facebookId;
       }
 
-      /*
-       * Apple normally sends the name
-       * only during first consent.
-       */
-      if (!user.firstName && appleUser?.name?.firstName) {
-        user.firstName = sanitizeAppleName(appleUser.name.firstName);
+      if (!user.firstName && profile.first_name) {
+        user.firstName = sanitizeSocialName(profile.first_name);
       }
 
-      if (!user.lastName && appleUser?.name?.lastName) {
-        user.lastName = sanitizeAppleName(appleUser.name.lastName);
+      if (!user.lastName && profile.last_name) {
+        user.lastName = sanitizeSocialName(profile.last_name);
       }
 
       if (!user.trainerCode) {
@@ -399,24 +472,32 @@ const appleAuth = async (req, res) => {
       await user.save();
     }
 
+    /* ---------------------------------------------------
+         ACTIVE ACCOUNT
+      --------------------------------------------------- */
+
     if (!user.isActive) {
       return res.status(403).json({
         message: "Your account is inactive. Please contact support.",
       });
     }
 
+    /* ---------------------------------------------------
+         ROTOMPC SESSION
+      --------------------------------------------------- */
+
     return res.json(makeSessionResponse(user));
   } catch (error) {
-    console.error("appleAuth error:", error);
+    console.error("facebookAuth error:", error);
 
-    if (error.message?.startsWith("Missing Apple configuration")) {
+    if (error.code === "FACEBOOK_CONFIG") {
       return res.status(500).json({
-        message: "Apple authentication is not configured.",
+        message: "Facebook authentication is not configured.",
       });
     }
 
     return res.status(401).json({
-      message: "Apple authentication failed.",
+      message: "Facebook authentication failed.",
     });
   }
 };
@@ -427,7 +508,11 @@ const appleAuth = async (req, res) => {
 
 const loginUser = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const {
+      email,
+
+      password,
+    } = req.body;
 
     const identifier = String(email || "").trim();
 
@@ -449,10 +534,6 @@ const loginUser = async (req, res) => {
       ],
     }).select("+password");
 
-    /*
-     * Same response for an unknown
-     * user or incorrect password.
-     */
     if (!user) {
       return res.status(401).json({
         message: "Invalid username/email or password.",
@@ -465,17 +546,17 @@ const loginUser = async (req, res) => {
       });
     }
 
-    /*
-     * Social-only accounts may not
-     * have a local password.
-     */
+    /* ---------------------------------------------------
+         SOCIAL-ONLY ACCOUNT
+      --------------------------------------------------- */
+
     if (!user.password) {
       let provider = "social authentication";
 
       if (user.googleId) {
         provider = "Google Sign-In";
-      } else if (user.appleId) {
-        provider = "Apple Sign-In";
+      } else if (user.facebookId) {
+        provider = "Facebook Sign-In";
       }
 
       return res.status(400).json({
@@ -483,7 +564,11 @@ const loginUser = async (req, res) => {
       });
     }
 
-    const validPassword = await bcrypt.compare(password, user.password);
+    const validPassword = await bcrypt.compare(
+      password,
+
+      user.password,
+    );
 
     if (!validPassword) {
       return res.status(401).json({
@@ -503,8 +588,14 @@ const loginUser = async (req, res) => {
   }
 };
 
+/* =========================================================
+   EXPORTS
+========================================================= */
+
 module.exports = {
   loginUser,
+
   googleAuth,
-  appleAuth,
+
+  facebookAuth,
 };

@@ -12,22 +12,31 @@ const userSchema = new mongoose.Schema(
 
     firstName: {
       type: String,
+
       trim: true,
+
       default: "",
+
       maxlength: 50,
     },
 
     lastName: {
       type: String,
+
       trim: true,
+
       default: "",
+
       maxlength: 50,
     },
 
     age: {
       type: Number,
+
       default: null,
+
       min: 18,
+
       max: 100,
     },
 
@@ -41,37 +50,53 @@ const userSchema = new mongoose.Schema(
 
     contactNumber: {
       type: String,
+
       trim: true,
+
       default: "",
     },
 
     email: {
       type: String,
+
       required: true,
+
       unique: true,
+
       lowercase: true,
+
       trim: true,
     },
 
     username: {
       type: String,
+
       required: true,
+
       unique: true,
+
       trim: true,
+
       minlength: 3,
+
       maxlength: 30,
     },
 
     password: {
       type: String,
+
       select: false,
+
       default: null,
     },
 
     address: {
       type: String,
+
       trim: true,
+
       default: "",
+
       maxlength: 200,
     },
 
@@ -85,16 +110,20 @@ const userSchema = new mongoose.Schema(
 
     isActive: {
       type: Boolean,
+
       default: true,
     },
 
     /*
-     * False for a new Google/Apple
-     * trainer until missing fields
-     * have been completed.
+     * False for a new
+     * Google/Facebook trainer
+     * until missing Trainer data
+     * has been completed.
      */
+
     profileCompleted: {
       type: Boolean,
+
       default: true,
     },
 
@@ -104,15 +133,21 @@ const userSchema = new mongoose.Schema(
 
     googleId: {
       type: String,
+
       unique: true,
+
       sparse: true,
+
       index: true,
     },
 
-    appleId: {
+    facebookId: {
       type: String,
+
       unique: true,
+
       sparse: true,
+
       index: true,
     },
 
@@ -122,38 +157,54 @@ const userSchema = new mongoose.Schema(
 
     trainerCode: {
       type: String,
+
       unique: true,
+
       sparse: true,
+
       index: true,
     },
 
     bio: {
       type: String,
+
       maxlength: 160,
+
       default: "",
+
       trim: true,
     },
 
     region: {
       type: String,
+
       maxlength: 30,
+
       default: "",
+
       trim: true,
     },
 
     favoritePokemon: {
       id: {
         type: Number,
+
         min: 1,
+
         max: 1025,
+
         default: null,
       },
 
       name: {
         type: String,
+
         lowercase: true,
+
         trim: true,
+
         maxlength: 50,
+
         default: "",
       },
     },
@@ -236,4 +287,14 @@ userSchema.methods.toPublicProfile = function () {
   };
 };
 
-module.exports = mongoose.models.User || mongoose.model("User", userSchema);
+/* =========================================================
+   MODEL
+========================================================= */
+
+module.exports =
+  mongoose.models.User ||
+  mongoose.model(
+    "User",
+
+    userSchema,
+  );

@@ -1,105 +1,201 @@
 // rotompc-client/src/components/auth/SocialAuthButtons.jsx
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import * as userService from "@/services/UserService";
 
 /* =========================================================
-   GOOGLE ICON
+   CONFIG
 ========================================================= */
 
-const GoogleIcon = ({ className = "h-6 w-6" }) => {
-  return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-      <path
-        fill="#4285F4"
-        d="
-          M21.805 10.023
-          H12
-          v3.955
-          h5.617
-          c-.242 1.273
-          -.969 2.352
-          -2.063 3.078
-          v2.563
-          h3.336
-          c1.953-1.797
-          3.078-4.445
-          3.078-7.586
-          0-.695
-          -.062-1.367
-          -.163-2.01
-        "
-      />
+const GOOGLE_CLIENT_ID = String(
+  import.meta.env.VITE_GOOGLE_CLIENT_ID || "",
+).trim();
 
-      <path
-        fill="#34A853"
-        d="
-          M12 22
-          c2.805 0
-          5.156-.93
-          6.89-2.523
-          l-3.336-2.563
-          c-.93.625
-          -2.117.992
-          -3.554.992
-          -2.711 0
-          -5.008-1.828
-          -5.828-4.289
-          H2.727
-          v2.648
-          C4.453 19.695
-          7.969 22
-          12 22
-        "
-      />
+const FACEBOOK_APP_ID = String(
+  import.meta.env.VITE_FACEBOOK_APP_ID || "",
+).trim();
 
-      <path
-        fill="#FBBC05"
-        d="
-          M6.172 13.617
-          A5.99 5.99 0 0 1
-          5.86 12
-          c0-.563.11-1.102.312-1.617
-          V7.734
-          H2.727
-          A10.012 10.012 0 0 0
-          2 12
-          c0 1.602.383 3.117
-          1.063 4.266
-          z
-        "
-      />
+const FACEBOOK_GRAPH_VERSION = String(
+  import.meta.env.VITE_FACEBOOK_GRAPH_VERSION || "",
+).trim();
 
-      <path
-        fill="#EA4335"
-        d="
-          M12 6.094
-          c1.523 0
-          2.89.523
-          3.969 1.555
-          l2.969-2.97
-          C17.156 3.016
-          14.805 2
-          12 2
-          7.969 2
-          4.453 4.305
-          2.727 7.734
-          l3.445 2.649
-          C6.992 7.922
-          9.289 6.094
-          12 6.094
-        "
-      />
-    </svg>
-  );
+/* =========================================================
+   GOOGLE SDK SINGLETON
+========================================================= */
+
+let googleSdkPromise = null;
+
+let googleInitializedClientId = null;
+
+let currentGoogleCredentialHandler = null;
+
+/* =========================================================
+   FACEBOOK SDK SINGLETON
+========================================================= */
+
+let facebookSdkPromise = null;
+
+let facebookInitializedAppId = null;
+
+/* =========================================================
+   GOOGLE SDK
+========================================================= */
+
+const loadGoogleSdk = () => {
+  if (window.google?.accounts?.id) {
+    return Promise.resolve(window.google);
+  }
+
+  if (googleSdkPromise) {
+    return googleSdkPromise;
+  }
+
+  googleSdkPromise = new Promise((resolve, reject) => {
+    const existing = document.getElementById("google-identity-services");
+
+    if (existing) {
+      existing.addEventListener(
+        "load",
+        () => {
+          if (window.google?.accounts?.id) {
+            resolve(window.google);
+          } else {
+            reject(new Error("Google Identity Services could not be loaded."));
+          }
+        },
+        {
+          once: true,
+        },
+      );
+
+      existing.addEventListener(
+        "error",
+        () => {
+          reject(new Error("Unable to load Google authentication."));
+        },
+        {
+          once: true,
+        },
+      );
+
+      return;
+    }
+
+    const script = document.createElement("script");
+
+    script.id = "google-identity-services";
+
+    script.src = "https://accounts.google.com/gsi/client";
+
+    script.async = true;
+    script.defer = true;
+
+    script.onload = () => {
+      if (window.google?.accounts?.id) {
+        resolve(window.google);
+      } else {
+        reject(new Error("Google Identity Services could not be initialized."));
+      }
+    };
+
+    script.onerror = () => {
+      googleSdkPromise = null;
+
+      reject(new Error("Unable to load Google authentication."));
+    };
+
+    document.head.appendChild(script);
+  });
+
+  return googleSdkPromise;
 };
 
 /* =========================================================
-   APPLE / IOS ICON
+   FACEBOOK SDK
 ========================================================= */
 
-const AppleIcon = ({ className = "h-7 w-7" }) => {
+const loadFacebookSdk = () => {
+  if (!FACEBOOK_APP_ID) {
+    return Promise.reject(new Error("Facebook App ID is not configured."));
+  }
+
+  if (!FACEBOOK_GRAPH_VERSION) {
+    return Promise.reject(
+      new Error("Facebook Graph API version is not configured."),
+    );
+  }
+
+  if (window.FB && facebookInitializedAppId === FACEBOOK_APP_ID) {
+    return Promise.resolve(window.FB);
+  }
+
+  if (facebookSdkPromise) {
+    return facebookSdkPromise;
+  }
+
+  facebookSdkPromise = new Promise((resolve, reject) => {
+    window.fbAsyncInit = function () {
+      try {
+        window.FB.init({
+          appId: FACEBOOK_APP_ID,
+
+          cookie: true,
+
+          xfbml: false,
+
+          version: FACEBOOK_GRAPH_VERSION,
+        });
+
+        facebookInitializedAppId = FACEBOOK_APP_ID;
+
+        resolve(window.FB);
+      } catch (error) {
+        facebookSdkPromise = null;
+
+        reject(error);
+      }
+    };
+
+    const existing = document.getElementById("facebook-jssdk");
+
+    if (existing) {
+      /*
+       * Script may already be
+       * loading. fbAsyncInit above
+       * will run when ready.
+       */
+      return;
+    }
+
+    const script = document.createElement("script");
+
+    script.id = "facebook-jssdk";
+
+    script.src = "https://connect.facebook.net/en_US/sdk.js";
+
+    script.async = true;
+    script.defer = true;
+
+    script.crossOrigin = "anonymous";
+
+    script.onerror = () => {
+      facebookSdkPromise = null;
+
+      reject(new Error("Unable to load Facebook authentication."));
+    };
+
+    document.head.appendChild(script);
+  });
+
+  return facebookSdkPromise;
+};
+
+/* =========================================================
+   FACEBOOK ICON
+========================================================= */
+
+const FacebookIcon = ({ className = "h-6 w-6" }) => {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -109,43 +205,29 @@ const AppleIcon = ({ className = "h-7 w-7" }) => {
     >
       <path
         d="
-          M17.05 20.28
-          c-.98.95
-          -2.05.8
-          -3.08.35
-          -1.09-.46
-          -2.09-.48
-          -3.24 0
-          -1.44.62
-          -2.2.44
-          -3.06-.35
-          C2.79 15.25
-          3.51 7.59
-          9.05 7.31
-          c1.35.07
-          2.29.74
-          3.08.79
-          1.18-.24
-          2.31-.93
-          3.57-.84
-          1.51.12
-          2.65.72
-          3.4 1.8
-          -3.12 1.87
-          -2.38 5.98
-          .48 7.13
-          -.57 1.5
-          -1.31 2.99
-          -2.53 4.09
-          Z
-
-          M12.03 7.25
-          C11.88 5.02
-          13.69 3.18
-          15.77 3
-          c.29 2.58
-          -2.34 4.5
-          -3.74 4.25
+          M13.397 21
+          v-8.21
+          h2.765
+          l.414-3.2
+          h-3.179
+          V7.547
+          c0-.927
+          .258-1.558
+          1.59-1.558
+          h1.697
+          V3.127
+          C16.391 3.088
+          15.384 3
+          14.212 3
+          c-2.445 0
+          -4.12 1.492
+          -4.12 4.231
+          V9.59
+          H7.326
+          v3.2
+          h2.766
+          V21
+          h3.305
           Z
         "
       />
@@ -154,25 +236,97 @@ const AppleIcon = ({ className = "h-7 w-7" }) => {
 };
 
 /* =========================================================
-   SOCIAL AUTH BUTTON
+   TOOLTIP
 ========================================================= */
 
-const SocialIconButton = ({
-  provider,
-  disabled = false,
-  loading = false,
-  onClick,
-  children,
-}) => {
-  const isGoogle = provider === "Google";
-
+const ProviderTooltip = ({ provider }) => {
   return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      aria-label={`Continue with ${provider}`}
-      title={`Continue with ${provider}`}
+    <span
+      className="
+        pointer-events-none
+
+        absolute
+
+        bottom-[calc(100%+8px)]
+        left-1/2
+
+        z-30
+
+        -translate-x-1/2
+        translate-y-1
+
+        whitespace-nowrap
+
+        rounded-md
+
+        border
+        border-zinc-800
+
+        bg-zinc-950
+
+        px-2
+        py-1
+
+        font-mono
+
+        text-[7px]
+        font-black
+        uppercase
+        tracking-[0.08em]
+
+        text-white
+
+        opacity-0
+
+        shadow-md
+
+        transition
+
+        group-hover:translate-y-0
+        group-hover:opacity-100
+      "
+    >
+      {provider}
+    </span>
+  );
+};
+
+/* =========================================================
+   LOADING SPINNER
+========================================================= */
+
+const LoadingSpinner = () => {
+  return (
+    <span
+      aria-hidden="true"
+      className="
+          h-5
+          w-5
+
+          animate-spin
+
+          rounded-full
+
+          border-2
+          border-current
+          border-r-transparent
+        "
+    />
+  );
+};
+
+/* =========================================================
+   GOOGLE BUTTON WRAPPER
+========================================================= */
+
+const GoogleAuthButton = ({
+  googleButtonRef,
+  loading,
+  disabled,
+  configured,
+}) => {
+  return (
+    <div
       className={`
         group
 
@@ -188,115 +342,142 @@ const SocialIconButton = ({
 
         rounded-xl
 
+        ${disabled || !configured ? "opacity-50" : ""}
+      `}
+      title={
+        configured
+          ? "Continue with Google"
+          : "Google authentication is not configured"
+      }
+    >
+      <div
+        ref={googleButtonRef}
+        className="
+          flex
+          h-12
+          w-12
+
+          items-center
+          justify-center
+
+          overflow-hidden
+
+          rounded-xl
+        "
+      />
+
+      {loading && (
+        <div
+          className="
+            absolute
+            inset-0
+
+            z-20
+
+            flex
+            items-center
+            justify-center
+
+            rounded-xl
+
+            border-2
+            border-zinc-400
+
+            bg-white
+
+            text-zinc-700
+          "
+        >
+          <LoadingSpinner />
+        </div>
+      )}
+
+      {disabled && !loading && (
+        <div
+          aria-hidden="true"
+          className="
+              absolute
+              inset-0
+
+              z-10
+
+              cursor-not-allowed
+
+              rounded-xl
+
+              bg-white/10
+            "
+        />
+      )}
+
+      <ProviderTooltip provider="Google" />
+    </div>
+  );
+};
+
+/* =========================================================
+   FACEBOOK BUTTON
+========================================================= */
+
+const FacebookAuthButton = ({ onClick, loading, disabled, configured }) => {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled || !configured}
+      aria-label="Continue with Facebook"
+      title={
+        configured
+          ? "Continue with Facebook"
+          : "Facebook authentication is not configured"
+      }
+      className="
+        group
+
+        relative
+
+        flex
+        h-12
+        w-12
+        shrink-0
+
+        items-center
+        justify-center
+
+        rounded-xl
+
         border-2
-        border-zinc-400
+        border-[#145dbf]
+
+        bg-[#1877F2]
+
+        text-white
+
+        shadow-[2px_2px_0_rgba(24,24,27,.18)]
 
         transition-all
         duration-150
 
+        hover:-translate-y-0.5
+        hover:border-zinc-950
+        hover:bg-[#166fe5]
+        hover:shadow-[3px_3px_0_#18181b]
+
         focus:outline-none
         focus:ring-[3px]
-        focus:ring-[#3b4cca]/20
+        focus:ring-[#1877F2]/25
+
+        active:translate-x-[1px]
+        active:translate-y-[1px]
+        active:shadow-[1px_1px_0_#18181b]
 
         disabled:cursor-not-allowed
         disabled:opacity-50
-
-        ${
-          isGoogle
-            ? `
-              bg-white
-              text-zinc-950
-
-              hover:-translate-y-0.5
-              hover:border-zinc-600
-              hover:bg-zinc-50
-
-              hover:shadow-[2px_2px_0_#18181b]
-            `
-            : `
-              bg-zinc-950
-              text-white
-
-              hover:-translate-y-0.5
-              hover:bg-zinc-800
-
-              hover:shadow-[2px_2px_0_#18181b]
-            `
-        }
-      `}
+      "
     >
-      {loading ? (
-        <span
-          className="
-            h-5
-            w-5
+      {loading ? <LoadingSpinner /> : <FacebookIcon />}
 
-            animate-spin
-
-            rounded-full
-
-            border-2
-            border-current
-            border-r-transparent
-
-            opacity-70
-          "
-          aria-hidden="true"
-        />
-      ) : (
-        children
-      )}
-
-      {/* Tooltip */}
-
-      <span
-        className="
-          pointer-events-none
-
-          absolute
-
-          bottom-[calc(100%+8px)]
-          left-1/2
-
-          z-20
-
-          -translate-x-1/2
-          translate-y-1
-
-          whitespace-nowrap
-
-          rounded-md
-
-          border
-          border-zinc-800
-
-          bg-zinc-950
-
-          px-2
-          py-1
-
-          text-[8px]
-          font-black
-          uppercase
-          tracking-[0.08em]
-
-          text-white
-
-          opacity-0
-
-          shadow-md
-
-          transition
-
-          group-hover:translate-y-0
-          group-hover:opacity-100
-
-          group-focus-visible:translate-y-0
-          group-focus-visible:opacity-100
-        "
-      >
-        {provider}
-      </span>
+      <ProviderTooltip provider="Facebook" />
     </button>
   );
 };
@@ -312,96 +493,208 @@ const SocialAuthButtons = ({
 
   onError,
 }) => {
+  const googleButtonRef = useRef(null);
+
   const [activeProvider, setActiveProvider] = useState(null);
 
-  /* =======================================================
-     GOOGLE
+  const [facebookReady, setFacebookReady] = useState(false);
 
-     Keep your existing Google auth implementation here
-     if yours already uses GIS / Google Identity Services.
+  /* =======================================================
+     GOOGLE RESPONSE
   ======================================================= */
 
-  const handleGoogleAuth = async () => {
+  const handleGoogleCredential = useCallback(
+    async (credentialResponse) => {
+      const credential = credentialResponse?.credential;
+
+      if (!credential) {
+        onError?.("Google did not return a valid credential.");
+
+        return;
+      }
+
+      setActiveProvider("google");
+
+      onError?.("");
+
+      try {
+        const response = await userService.googleAuth(credential);
+
+        onAuthenticated?.(response.data);
+      } catch (error) {
+        console.error("Google authentication error:", error);
+
+        onError?.(
+          error.response?.data?.message ||
+            error.message ||
+            "Google authentication failed.",
+        );
+      } finally {
+        setActiveProvider(null);
+      }
+    },
+    [onAuthenticated, onError],
+  );
+
+  /* =======================================================
+     GOOGLE INITIALIZATION
+  ======================================================= */
+
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID || !googleButtonRef.current) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    currentGoogleCredentialHandler = handleGoogleCredential;
+
+    loadGoogleSdk()
+      .then((google) => {
+        if (cancelled || !googleButtonRef.current) {
+          return;
+        }
+
+        if (googleInitializedClientId !== GOOGLE_CLIENT_ID) {
+          google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+
+            callback: (response) => {
+              currentGoogleCredentialHandler?.(response);
+            },
+          });
+
+          googleInitializedClientId = GOOGLE_CLIENT_ID;
+        }
+
+        googleButtonRef.current.innerHTML = "";
+
+        google.accounts.id.renderButton(googleButtonRef.current, {
+          type: "icon",
+
+          theme: "outline",
+
+          size: "large",
+
+          shape: "square",
+
+          text: mode === "signup" ? "signup_with" : "signin_with",
+        });
+      })
+      .catch((error) => {
+        console.error("Google SDK error:", error);
+      });
+
+    return () => {
+      cancelled = true;
+
+      if (currentGoogleCredentialHandler === handleGoogleCredential) {
+        currentGoogleCredentialHandler = null;
+      }
+    };
+  }, [handleGoogleCredential, mode]);
+
+  /* =======================================================
+     FACEBOOK PRELOAD
+
+     Preload before click so FB.login()
+     is invoked directly from the user's
+     click event.
+  ======================================================= */
+
+  useEffect(() => {
+    if (!FACEBOOK_APP_ID || !FACEBOOK_GRAPH_VERSION) {
+      return;
+    }
+
+    let cancelled = false;
+
+    loadFacebookSdk()
+      .then(() => {
+        if (!cancelled) {
+          setFacebookReady(true);
+        }
+      })
+      .catch((error) => {
+        console.error("Facebook SDK error:", error);
+
+        if (!cancelled) {
+          setFacebookReady(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /* =======================================================
+     FACEBOOK LOGIN
+  ======================================================= */
+
+  const handleFacebookAuth = async () => {
     if (activeProvider) {
       return;
     }
 
-    setActiveProvider("google");
-
     onError?.("");
 
-    try {
-      /*
-       * If your existing UserService function has
-       * another name, keep your existing call here.
-       *
-       * Expected result:
-       *
-       * {
-       *   data: {
-       *     token,
-       *     id,
-       *     role,
-       *     ...
-       *   }
-       * }
-       */
+    if (!FACEBOOK_APP_ID) {
+      onError?.("Facebook authentication is not configured.");
 
-      if (typeof userService.continueWithGoogle !== "function") {
-        throw new Error("Google authentication service is not configured.");
-      }
-
-      const response = await userService.continueWithGoogle({
-        mode,
-      });
-
-      onAuthenticated?.(response.data);
-    } catch (error) {
-      console.error("Google authentication error:", error);
-
-      onError?.(
-        error.response?.data?.message ||
-          error.message ||
-          "Google authentication failed.",
-      );
-    } finally {
-      setActiveProvider(null);
-    }
-  };
-
-  /* =======================================================
-     APPLE
-
-     Keep your existing Apple auth implementation here
-     if yours already opens Apple Sign In.
-  ======================================================= */
-
-  const handleAppleAuth = async () => {
-    if (activeProvider) {
       return;
     }
 
-    setActiveProvider("apple");
+    if (!FACEBOOK_GRAPH_VERSION) {
+      onError?.("Facebook Graph API version is not configured.");
 
-    onError?.("");
+      return;
+    }
+
+    if (!facebookReady || !window.FB) {
+      onError?.("Facebook authentication is still loading. Please try again.");
+
+      return;
+    }
 
     try {
-      if (typeof userService.continueWithApple !== "function") {
-        throw new Error("Apple authentication service is not configured.");
-      }
+      const authResponse = await new Promise((resolve, reject) => {
+        window.FB.login(
+          (response) => {
+            if (
+              response?.status === "connected" &&
+              response?.authResponse?.accessToken
+            ) {
+              resolve(response.authResponse);
 
-      const response = await userService.continueWithApple({
-        mode,
+              return;
+            }
+
+            reject(
+              new Error("Facebook sign-in was cancelled or not authorized."),
+            );
+          },
+
+          {
+            scope: "public_profile,email",
+
+            return_scopes: true,
+          },
+        );
       });
+
+      setActiveProvider("facebook");
+
+      const response = await userService.facebookAuth(authResponse.accessToken);
 
       onAuthenticated?.(response.data);
     } catch (error) {
-      console.error("Apple authentication error:", error);
+      console.error("Facebook authentication error:", error);
 
       onError?.(
         error.response?.data?.message ||
           error.message ||
-          "Apple authentication failed.",
+          "Facebook authentication failed.",
       );
     } finally {
       setActiveProvider(null);
@@ -410,11 +703,9 @@ const SocialAuthButtons = ({
 
   /* =======================================================
      UI
-
-     Icons only.
-     No "Continue with Google".
-     No "Continue with Apple".
   ======================================================= */
+
+  const facebookConfigured = Boolean(FACEBOOK_APP_ID && FACEBOOK_GRAPH_VERSION);
 
   return (
     <div
@@ -425,23 +716,19 @@ const SocialAuthButtons = ({
         gap-3
       "
     >
-      <SocialIconButton
-        provider="Google"
-        disabled={Boolean(activeProvider)}
+      <GoogleAuthButton
+        googleButtonRef={googleButtonRef}
         loading={activeProvider === "google"}
-        onClick={handleGoogleAuth}
-      >
-        <GoogleIcon />
-      </SocialIconButton>
+        disabled={Boolean(activeProvider) && activeProvider !== "google"}
+        configured={Boolean(GOOGLE_CLIENT_ID)}
+      />
 
-      <SocialIconButton
-        provider="Apple"
-        disabled={Boolean(activeProvider)}
-        loading={activeProvider === "apple"}
-        onClick={handleAppleAuth}
-      >
-        <AppleIcon />
-      </SocialIconButton>
+      <FacebookAuthButton
+        onClick={handleFacebookAuth}
+        loading={activeProvider === "facebook"}
+        disabled={Boolean(activeProvider) || !facebookReady}
+        configured={facebookConfigured}
+      />
     </div>
   );
 };
