@@ -1,6 +1,7 @@
-//rotompc-client\src\constants.js
+// src/config/api.js
+
 const HOST = `${import.meta.env.VITE_API_URL}`;
 
 export default {
-    HOST,
+  HOST,
 };

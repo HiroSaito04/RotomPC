@@ -1,111 +1,232 @@
-import { createBrowserRouter, RouterProvider } from 'react-router-dom'
-// HomePage Structure
-//LabAct02
-import Layout from '@/layouts/Layout';
-import ArticlePage from '@/pages/LandingPages/ArticlePage';
-import HomePage from '@/pages/LandingPages/HomePage';
-import AboutPage from '@/pages/LandingPages/AboutPage';
+// rotompc-client/src/App.jsx
 
-//LabAct3
-import ArticleListPage from '@/pages/LandingPages/ArticleListPage';
-import NotFoundPage from '@/pages/NotFoundPage';
+import { useCallback, useState } from "react";
 
-//LabAct4
-import AuthLayout from '@/layouts/AuthLayout';
-import SignInPage from '@/pages/AuthPages/SignInPage';
-import SignUpPage from '@/pages/AuthPages/SignUpPage';
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
 
-//LabAct4-5
-import DashLayout from '@/layouts/DashLayout';
-import DashboardPage from '@/pages/DashboardPage/DashboardPage';
-import ReportsPage from '@/pages/DashboardPage/ReportsPage';
-import UsersPage from '@/pages/DashboardPage/UsersPage';
+/* =========================================================
+   LAYOUTS
+========================================================= */
 
-//LabAct6
-import DashArticleListPage from '@/pages/DashboardPage/DashArticleListPage';
+import Layout from "@/layouts/Layout";
 
-//RotomDex
-import RotomDexPage from '@/pages/LandingPages/RotomDexPage';
-import PokemonPage from '@/pages/LandingPages/PokemonPage';
+import AuthLayout from "@/layouts/AuthLayout";
+
+import DashLayout from "@/layouts/DashLayout";
+
+/* =========================================================
+   LANDING PAGES
+========================================================= */
+
+import HomePage from "@/pages/LandingPages/HomePage";
+
+import AboutPage from "@/pages/LandingPages/AboutPage";
+
+import ArticleListPage from "@/pages/LandingPages/ArticleListPage";
+
+import ArticlePage from "@/pages/LandingPages/ArticlePage";
+
+import RotomDexPage from "@/pages/LandingPages/RotomDexPage";
+
+import PokemonPage from "@/pages/LandingPages/PokemonPage";
+
+/* =========================================================
+   AUTH PAGES
+========================================================= */
+
+import SignInPage from "@/pages/AuthPages/SignInPage";
+
+import SignUpPage from "@/pages/AuthPages/SignUpPage";
+
+import CompleteProfilePage from "@/pages/AuthPages/CompleteProfilePage";
+
+/* =========================================================
+   DASHBOARD PAGES
+========================================================= */
+
+import DashboardPage from "@/pages/DashboardPage/DashboardPage";
+
+import ReportsPage from "@/pages/DashboardPage/ReportsPage";
+
+import UsersPage from "@/pages/DashboardPage/UsersPage";
+
+import DashArticleListPage from "@/pages/DashboardPage/DashArticleListPage";
+
+/* =========================================================
+   OTHER
+========================================================= */
+
+import NotFoundPage from "@/pages/NotFoundPage";
+
+import RotomPCSplash from "@/components/splash/RotomPCSplash";
+
+/* =========================================================
+   ROUTES
+========================================================= */
 
 const routes = [
+  /* =======================================================
+     LANDING
+  ======================================================= */
+
   {
-    path: '/',
+    path: "/",
+
     element: <Layout />,
+
     errorElement: <NotFoundPage />,
+
     children: [
       {
-        path: '',
+        index: true,
+
         element: <HomePage />,
       },
+
       {
-        path: 'about',
+        path: "about",
+
         element: <AboutPage />,
       },
+
       {
-        path: 'articles',
+        path: "articles",
+
         element: <ArticleListPage />,
       },
+
       {
-        path: 'articles/:name',
+        path: "articles/:name",
+
         element: <ArticlePage />,
       },
+
       {
-        path: 'pokedex',
+        path: "pokedex",
+
         element: <RotomDexPage />,
       },
+
       {
-        path: 'pokedex/:name',
+        path: "pokedex/:name",
+
         element: <PokemonPage />,
       },
     ],
   },
-{
-  path: 'auth/',
+
+  /* =======================================================
+     AUTH
+  ======================================================= */
+
+  {
+    path: "/auth",
+
     element: <AuthLayout />,
+
     errorElement: <NotFoundPage />,
+
     children: [
       {
-        path: 'signin',
+        path: "signin",
+
         element: <SignInPage />,
       },
+
       {
-        path: 'signup',
+        path: "signup",
+
         element: <SignUpPage />,
+      },
+
+      {
+        path: "complete-profile",
+
+        element: <CompleteProfilePage />,
       },
     ],
   },
+
+  /* =======================================================
+     DASHBOARD
+  ======================================================= */
+
   {
-   path: 'dashboard/',
+    path: "/dashboard",
+
     element: <DashLayout />,
+
     errorElement: <NotFoundPage />,
+
     children: [
       {
-        path: '',
+        index: true,
+
         element: <DashboardPage />,
       },
+
       {
-        path: 'articles',
+        path: "articles",
+
         element: <DashArticleListPage />,
       },
+
       {
-        path: 'reports',
+        path: "reports",
+
         element: <ReportsPage />,
       },
+
       {
-        path: 'users',
+        path: "users",
+
         element: <UsersPage />,
       },
     ],
-  }
+  },
 ];
+
+/* =========================================================
+   ROUTER
+========================================================= */
 
 const router = createBrowserRouter(routes);
 
+/* =========================================================
+   APP
+========================================================= */
+
 function App() {
+  const [splashVisible, setSplashVisible] = useState(true);
+
+  /* =======================================================
+     SPLASH COMPLETE
+  ======================================================= */
+
+  const handleSplashFinish = useCallback(() => {
+    setSplashVisible(false);
+  }, []);
+
+  /* =======================================================
+     UI
+  ======================================================= */
+
   return (
     <>
+      {/*
+       * Router mounts immediately.
+       *
+       * This lets the actual page initialize
+       * behind the splash screen.
+       */}
+
       <RouterProvider router={router} />
+
+      {/*
+       * Splash is simply a temporary overlay.
+       */}
+
+      {splashVisible && <RotomPCSplash onFinish={handleSplashFinish} />}
     </>
   );
 }

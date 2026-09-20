@@ -1,0 +1,1800 @@
+/* rotompc-client/src/assets/styles/rotom-ai.css */
+
+/* =========================================================
+   VARIABLES
+========================================================= */
+
+:root {
+  --rotom-ai-red: #e63946;
+
+  --rotom-ai-red-light: #ff5964;
+
+  --rotom-ai-ink: #264653;
+
+  --rotom-ai-screen: #f1faee;
+
+  --rotom-ai-screen-dark: #e5f3e1;
+
+  --rotom-ai-yellow: #ffd60a;
+
+  --rotom-ai-yellow-bright: #fff36a;
+
+  --rotom-ai-electric-blue: #61e7ff;
+
+  --rotom-ai-electric-white: #f8ffff;
+}
+
+/* =========================================================
+   LAUNCHER
+
+   Smaller on mobile.
+========================================================= */
+
+.rotom-ai-launcher {
+  position: fixed;
+
+  z-index: 55;
+
+  width: 64px;
+  height: 64px;
+
+  pointer-events: none;
+}
+
+/* =========================================================
+   TELEPORT POSITION
+========================================================= */
+
+.rotom-ai-launcher--teleport {
+  transition:
+    left 90ms linear,
+    top 90ms linear;
+}
+
+/* =========================================================
+   DOCKED ROTOM
+
+   MOBILE:
+   Smaller Rotom above Buddy.
+========================================================= */
+
+.rotom-ai-launcher--docked {
+  right: 0.6rem;
+
+  /*
+   * Buddy:
+   * bottom: 16px
+   * height: 48px
+   *
+   * Dock Rotom above it.
+   */
+  bottom: 4.65rem;
+
+  width: 56px;
+  height: 56px;
+
+  animation: rotomDockAppear 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* =========================================================
+   NO BUDDY
+========================================================= */
+
+.rotom-ai-launcher--docked.rotom-ai-launcher--solo {
+  right: 0.75rem;
+
+  bottom: 1rem;
+}
+
+/* =========================================================
+   RAW ICON BUTTON
+
+   Intentionally:
+   no box
+   no border
+   no background
+   no shadow rectangle
+========================================================= */
+
+.rotom-ai-launcher__button {
+  position: relative;
+
+  z-index: 5;
+
+  display: block;
+
+  width: 100%;
+  height: 100%;
+
+  padding: 0;
+
+  pointer-events: auto;
+
+  cursor: pointer;
+
+  border: 0;
+
+  outline: none;
+
+  background: transparent;
+
+  appearance: none;
+
+  -webkit-tap-highlight-color: transparent;
+
+  transition:
+    transform 150ms ease,
+    filter 150ms ease;
+}
+
+.rotom-ai-launcher__button:hover {
+  transform: translateY(-4px) scale(1.06);
+}
+
+.rotom-ai-launcher__button:active {
+  transform: translateY(0) scale(0.94);
+}
+
+.rotom-ai-launcher__button:focus-visible {
+  outline: 3px solid rgba(255, 214, 10, 0.9);
+
+  outline-offset: 6px;
+
+  border-radius: 50%;
+}
+
+/* =========================================================
+   ICON
+========================================================= */
+
+.rotom-ai-launcher__icon {
+  position: relative;
+
+  z-index: 5;
+
+  display: block;
+
+  width: 100%;
+  height: 100%;
+
+  object-fit: contain;
+
+  user-select: none;
+
+  pointer-events: none;
+
+  filter: drop-shadow(0 4px 1px rgba(38, 70, 83, 0.32));
+
+  animation: rotomIdleFloat 1.7s ease-in-out infinite;
+}
+
+.rotom-ai-launcher--docked .rotom-ai-launcher__icon {
+  animation: rotomDockFloat 2.5s ease-in-out infinite;
+}
+
+/* =========================================================
+   ELECTRIC FIELD
+========================================================= */
+
+.rotom-ai-electric {
+  position: absolute;
+
+  inset: -22px;
+
+  z-index: 1;
+
+  pointer-events: none;
+
+  transform: scale(0.86);
+
+  transform-origin: center;
+}
+
+/* =========================================================
+   ELECTRIC GLOW
+========================================================= */
+
+.rotom-ai-electric__glow {
+  position: absolute;
+
+  inset: 8px;
+
+  border-radius: 50%;
+
+  background: radial-gradient(
+    circle,
+    rgba(255, 246, 110, 0.55) 0%,
+    rgba(255, 214, 10, 0.32) 27%,
+    rgba(97, 231, 255, 0.18) 47%,
+    transparent 72%
+  );
+
+  filter: blur(10px);
+
+  animation: rotomElectricGlow 530ms ease-in-out infinite alternate;
+}
+
+/* =========================================================
+   ELECTRIC RINGS
+========================================================= */
+
+.rotom-ai-electric__ring {
+  position: absolute;
+
+  border-radius: 50%;
+
+  opacity: 0.75;
+}
+
+.rotom-ai-electric__ring--one {
+  inset: 10px;
+
+  border: 2px dashed var(--rotom-ai-yellow-bright);
+
+  animation: rotomElectricRingOne 950ms linear infinite;
+}
+
+.rotom-ai-electric__ring--two {
+  inset: 18px;
+
+  border: 2px dotted var(--rotom-ai-electric-blue);
+
+  animation: rotomElectricRingTwo 780ms linear infinite reverse;
+}
+
+/* =========================================================
+   LIGHTNING BOLTS
+========================================================= */
+
+.rotom-ai-electric__bolt {
+  position: absolute;
+
+  width: 9px;
+  height: 30px;
+
+  background: linear-gradient(
+    to bottom,
+    #ffffff,
+    #fff36a 30%,
+    #ffd60a 70%,
+    #61e7ff
+  );
+
+  clip-path: polygon(
+    58% 0,
+    100% 0,
+    66% 36%,
+    100% 36%,
+    21% 100%,
+    42% 57%,
+    5% 57%
+  );
+
+  filter: drop-shadow(0 0 4px #fff36a)
+    drop-shadow(0 0 8px rgba(97, 231, 255, 0.9));
+
+  transform-origin: center;
+
+  animation: rotomBoltFlash 360ms steps(2, end) infinite;
+}
+
+.rotom-ai-electric__bolt--1 {
+  left: 20px;
+  top: 15px;
+
+  transform: rotate(-42deg);
+
+  animation-delay: -90ms;
+}
+
+.rotom-ai-electric__bolt--2 {
+  right: 18px;
+  top: 23px;
+
+  transform: rotate(47deg);
+
+  animation-delay: -210ms;
+}
+
+.rotom-ai-electric__bolt--3 {
+  right: 10px;
+  top: 68px;
+
+  transform: rotate(78deg);
+
+  animation-delay: -20ms;
+}
+
+.rotom-ai-electric__bolt--4 {
+  right: 31px;
+  bottom: 7px;
+
+  transform: rotate(151deg);
+
+  animation-delay: -160ms;
+}
+
+.rotom-ai-electric__bolt--5 {
+  left: 26px;
+  bottom: 9px;
+
+  transform: rotate(205deg);
+
+  animation-delay: -260ms;
+}
+
+.rotom-ai-electric__bolt--6 {
+  left: 5px;
+  top: 66px;
+
+  transform: rotate(268deg);
+
+  animation-delay: -120ms;
+}
+
+/* =========================================================
+   SMALL SPARKS
+========================================================= */
+
+.rotom-ai-electric__spark {
+  position: absolute;
+
+  width: 6px;
+  height: 6px;
+
+  border-radius: 50%;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 0 5px #ffffff,
+    0 0 10px #fff36a,
+    0 0 16px #61e7ff;
+
+  animation: rotomSpark 520ms ease-in-out infinite;
+}
+
+.rotom-ai-electric__spark--1 {
+  left: 14px;
+  top: 55px;
+
+  animation-delay: -150ms;
+}
+
+.rotom-ai-electric__spark--2 {
+  right: 19px;
+  top: 10px;
+
+  animation-delay: -310ms;
+}
+
+.rotom-ai-electric__spark--3 {
+  right: 8px;
+  bottom: 45px;
+
+  animation-delay: -80ms;
+}
+
+.rotom-ai-electric__spark--4 {
+  left: 40px;
+  bottom: 2px;
+
+  animation-delay: -220ms;
+}
+
+/* =========================================================
+   TELEPORT ANIMATION
+========================================================= */
+
+.rotom-ai-launcher--teleporting {
+  animation: rotomTeleport 360ms cubic-bezier(0.5, 0, 0.5, 1) both;
+}
+
+/* =========================================================
+   DOCK CHAT BUBBLE
+
+   Mobile-safe.
+   Anchored toward the right so it cannot
+   escape the viewport.
+========================================================= */
+
+.rotom-ai-nudge {
+  position: absolute;
+
+  right: -2px;
+  bottom: calc(100% + 5px);
+
+  left: auto;
+
+  z-index: 12;
+
+  width: max-content;
+
+  /*
+   * Never exceed the mobile viewport.
+   */
+  max-width: min(165px, calc(100vw - 24px));
+
+  transform: none;
+
+  pointer-events: none;
+
+  animation: rotomBubbleAppearMobile 350ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.rotom-ai-nudge__text {
+  position: relative;
+
+  display: block;
+
+  box-sizing: border-box;
+
+  width: 100%;
+
+  max-width: inherit;
+
+  padding: 6px 9px;
+
+  border: 2px solid #18181b;
+
+  border-radius: 10px;
+
+  background: #ffffff;
+
+  color: #18181b;
+
+  font-family: var(--font-body, sans-serif);
+
+  font-size: 9px;
+
+  font-weight: 900;
+
+  line-height: 1.25;
+
+  /*
+   * Important:
+   * allow longer random phrases
+   * to wrap instead of overflowing.
+   */
+  white-space: normal;
+
+  overflow-wrap: break-word;
+
+  word-break: normal;
+
+  text-align: center;
+
+  box-shadow: 2px 2px 0 #18181b;
+
+  animation: rotomBubbleFloat 2s ease-in-out infinite;
+}
+
+/* =========================================================
+   SPEECH BUBBLE POINTER
+
+   Point toward docked Rotom.
+========================================================= */
+
+.rotom-ai-nudge__text::after {
+  content: "";
+
+  position: absolute;
+
+  right: 18px;
+  top: 100%;
+
+  left: auto;
+
+  width: 9px;
+  height: 9px;
+
+  transform: translateY(-4px) rotate(45deg);
+
+  border-right: 2px solid #18181b;
+
+  border-bottom: 2px solid #18181b;
+
+  background: #ffffff;
+}
+
+@keyframes rotomBubbleAppearMobile {
+  from {
+    opacity: 0;
+
+    transform: translateY(7px) scale(0.82);
+
+    transform-origin: bottom right;
+  }
+
+  to {
+    opacity: 1;
+
+    transform: translateY(0) scale(1);
+
+    transform-origin: bottom right;
+  }
+}
+
+/* =========================================================
+   MODAL BACKDROP
+========================================================= */
+
+.rotom-ai-modal-backdrop {
+  position: fixed;
+
+  inset: 0;
+
+  z-index: 160;
+
+  display: flex;
+
+  align-items: flex-end;
+
+  justify-content: center;
+
+  background: rgba(8, 23, 32, 0.82);
+
+  backdrop-filter: blur(8px);
+
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* =========================================================
+   MODAL BACKLIGHT
+========================================================= */
+
+.rotom-ai-modal-glow {
+  position: absolute;
+
+  left: 50%;
+  top: 50%;
+
+  width: 80vw;
+  height: 80vh;
+
+  max-width: 1100px;
+
+  transform: translate(-50%, -50%);
+
+  border-radius: 50%;
+
+  pointer-events: none;
+
+  background: radial-gradient(
+    circle,
+    rgba(255, 214, 10, 0.24),
+    rgba(97, 231, 255, 0.13) 40%,
+    transparent 70%
+  );
+
+  filter: blur(45px);
+}
+
+/* =========================================================
+   MODAL SHELL
+========================================================= */
+
+.rotom-ai-modal {
+  position: relative;
+
+  z-index: 2;
+
+  display: flex;
+
+  flex-direction: column;
+
+  width: 100%;
+
+  max-height: 95dvh;
+
+  overflow: hidden;
+
+  border: 4px solid var(--rotom-ai-ink);
+
+  border-bottom: 0;
+
+  border-radius: 28px 28px 0 0;
+
+  background: var(--rotom-ai-red);
+
+  box-shadow: 10px 10px 0 rgba(6, 26, 35, 0.6);
+
+  animation: rotomModalIn 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* =========================================================
+   HEADER
+========================================================= */
+
+.rotom-ai-modal__header {
+  display: flex;
+
+  flex-shrink: 0;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 12px;
+
+  padding: 12px;
+
+  border-bottom: 4px solid var(--rotom-ai-ink);
+
+  background: var(--rotom-ai-red);
+
+  color: white;
+}
+
+.rotom-ai-modal__identity {
+  display: flex;
+
+  min-width: 0;
+
+  align-items: center;
+
+  gap: 12px;
+}
+
+.rotom-ai-modal__avatar {
+  display: flex;
+
+  width: 56px;
+  height: 56px;
+
+  flex-shrink: 0;
+
+  align-items: center;
+
+  justify-content: center;
+}
+
+.rotom-ai-modal__avatar img {
+  width: 100%;
+  height: 100%;
+
+  object-fit: contain;
+
+  filter: drop-shadow(0 3px 0 rgba(38, 70, 83, 0.45));
+}
+
+.rotom-ai-modal__identity-text {
+  min-width: 0;
+}
+
+.rotom-ai-modal__title-row {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+}
+
+.rotom-ai-modal__title-row h2 {
+  margin: 0;
+
+  color: white;
+
+  font-family: var(--font-heading, sans-serif);
+
+  font-size: 24px;
+
+  font-weight: 700;
+}
+
+.rotom-ai-modal__online-dot {
+  width: 8px;
+  height: 8px;
+
+  flex-shrink: 0;
+
+  border-radius: 50%;
+
+  background: var(--rotom-ai-yellow);
+
+  box-shadow: 0 0 10px var(--rotom-ai-yellow);
+
+  animation: rotomStatusPulse 1.2s ease-in-out infinite;
+}
+
+.rotom-ai-modal__identity-text > p {
+  margin-top: 2px;
+
+  overflow: hidden;
+
+  color: rgba(255, 255, 255, 0.72);
+
+  font-family: var(--font-device, monospace);
+
+  font-size: 8px;
+
+  font-weight: 700;
+
+  letter-spacing: 0.1em;
+
+  text-overflow: ellipsis;
+
+  text-transform: uppercase;
+
+  white-space: nowrap;
+}
+
+.rotom-ai-modal__header-actions {
+  display: flex;
+
+  flex-shrink: 0;
+
+  align-items: center;
+
+  gap: 8px;
+}
+
+.rotom-ai-modal__clear,
+.rotom-ai-modal__close {
+  border: 2px solid var(--rotom-ai-ink);
+
+  background: var(--rotom-ai-screen);
+
+  color: var(--rotom-ai-ink);
+
+  font-weight: 900;
+
+  cursor: pointer;
+
+  box-shadow: 2px 2px 0 var(--rotom-ai-ink);
+
+  transition:
+    transform 150ms ease,
+    background 150ms ease;
+}
+
+.rotom-ai-modal__clear {
+  display: none;
+
+  padding: 8px 12px;
+
+  border-radius: 10px;
+
+  font-size: 9px;
+
+  text-transform: uppercase;
+}
+
+.rotom-ai-modal__close {
+  display: flex;
+
+  width: 40px;
+  height: 40px;
+
+  align-items: center;
+
+  justify-content: center;
+
+  border-width: 3px;
+
+  border-radius: 12px;
+
+  font-size: 22px;
+}
+
+.rotom-ai-modal__clear:hover,
+.rotom-ai-modal__close:hover {
+  transform: translateY(-2px);
+
+  background: #fff5a8;
+}
+
+/* =========================================================
+   SCREEN SHELL
+========================================================= */
+
+.rotom-ai-screen-shell {
+  display: flex;
+
+  min-height: 0;
+
+  flex: 1;
+
+  flex-direction: column;
+
+  padding: 10px;
+}
+
+.rotom-ai-screen {
+  display: flex;
+
+  min-height: 0;
+
+  flex: 1;
+
+  flex-direction: column;
+
+  overflow: hidden;
+
+  border: 4px solid var(--rotom-ai-ink);
+
+  border-radius: 22px;
+
+  background: var(--rotom-ai-screen);
+
+  box-shadow: inset 0 0 0 3px rgba(38, 70, 83, 0.07);
+}
+
+/* =========================================================
+   STATUS
+========================================================= */
+
+.rotom-ai-screen__status {
+  display: flex;
+
+  flex-shrink: 0;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 12px;
+
+  padding: 8px 14px;
+
+  border-bottom: 2px solid rgba(38, 70, 83, 0.14);
+
+  background: var(--rotom-ai-screen-dark);
+
+  color: rgba(38, 70, 83, 0.72);
+
+  font-family: var(--font-device, monospace);
+
+  font-size: 8px;
+
+  font-weight: 700;
+
+  letter-spacing: 0.09em;
+
+  text-transform: uppercase;
+}
+
+.rotom-ai-screen__status > div {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+}
+
+.rotom-ai-screen__status-dot {
+  display: block;
+
+  width: 7px;
+  height: 7px;
+
+  border-radius: 50%;
+
+  background: #22c55e;
+
+  animation: rotomStatusPulse 1.2s ease-in-out infinite;
+}
+
+.rotom-ai-screen__status-right {
+  display: none;
+}
+
+/* =========================================================
+   MESSAGE AREA
+========================================================= */
+
+.rotom-ai-screen__messages {
+  min-height: 0;
+
+  flex: 1;
+
+  overflow-y: auto;
+
+  padding: 14px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 16px;
+}
+
+/* =========================================================
+   MESSAGE ROW
+========================================================= */
+
+.rotom-ai-message-row {
+  display: flex;
+
+  width: 100%;
+}
+
+.rotom-ai-message-row--user {
+  justify-content: flex-end;
+}
+
+.rotom-ai-message-row--rotom {
+  justify-content: flex-start;
+}
+
+/* =========================================================
+   MESSAGE
+========================================================= */
+
+.rotom-ai-message {
+  box-sizing: border-box;
+
+  min-width: 0;
+
+  max-width: 92%;
+
+  overflow: hidden;
+
+  padding: 10px 11px;
+
+  border: 3px solid var(--rotom-ai-ink);
+
+  border-radius: 16px;
+
+  box-shadow: 2px 2px 0 var(--rotom-ai-ink);
+}
+
+.rotom-ai-message--user {
+  border-bottom-right-radius: 5px;
+
+  background: #3b4cca;
+
+  color: #ffffff;
+}
+
+.rotom-ai-message--rotom {
+  border-bottom-left-radius: 5px;
+
+  background: var(--rotom-ai-screen);
+
+  color: var(--rotom-ai-ink);
+}
+
+.rotom-ai-message__badges {
+  display: flex;
+
+  flex-wrap: wrap;
+
+  gap: 6px;
+
+  margin-bottom: 8px;
+}
+
+.rotom-ai-message__badge {
+  padding: 3px 7px;
+
+  border-radius: 999px;
+
+  font-size: 7px;
+
+  font-weight: 900;
+
+  letter-spacing: 0.04em;
+
+  text-transform: uppercase;
+}
+
+.rotom-ai-message__badge--rotom {
+  background: var(--rotom-ai-red);
+
+  color: white;
+}
+
+.rotom-ai-message__badge--grounded {
+  background: #dcfce7;
+
+  color: #15803d;
+}
+
+.rotom-ai-message__badge--pokeapi {
+  background: #fef3c7;
+
+  color: #92400e;
+}
+
+.rotom-ai-message__content {
+  min-width: 0;
+
+  max-width: 100%;
+
+  white-space: pre-wrap;
+
+  overflow-wrap: anywhere;
+
+  word-break: break-word;
+
+  font-size: 12px;
+
+  font-weight: 600;
+
+  line-height: 1.55;
+}
+
+.rotom-ai-message__sources {
+  margin-top: 14px;
+
+  padding-top: 10px;
+
+  border-top: 2px solid rgba(38, 70, 83, 0.14);
+}
+
+.rotom-ai-message__sources-title {
+  margin-bottom: 7px;
+
+  color: rgba(38, 70, 83, 0.55);
+
+  font-size: 8px;
+
+  font-weight: 900;
+
+  letter-spacing: 0.1em;
+
+  text-transform: uppercase;
+}
+
+.rotom-ai-message__source-list {
+  display: grid;
+
+  gap: 6px;
+}
+
+.rotom-ai-message__model {
+  margin-top: 8px;
+
+  font-size: 7px;
+
+  font-weight: 700;
+
+  letter-spacing: 0.06em;
+
+  opacity: 0.38;
+
+  text-transform: uppercase;
+}
+
+/* =========================================================
+   SOURCES
+========================================================= */
+
+.rotom-ai-source {
+  display: flex;
+
+  box-sizing: border-box;
+
+  min-width: 0;
+
+  width: 100%;
+
+  max-width: 100%;
+
+  align-items: center;
+
+  gap: 7px;
+
+  padding: 7px 8px;
+
+  overflow: hidden;
+
+  border: 2px solid rgba(38, 70, 83, 0.24);
+
+  border-radius: 8px;
+
+  background: rgba(255, 255, 255, 0.7);
+
+  color: var(--rotom-ai-ink);
+
+  font-size: 9px;
+
+  font-weight: 700;
+
+  text-decoration: none;
+}
+
+.rotom-ai-source:hover {
+  border-color: var(--rotom-ai-ink);
+
+  background: white;
+}
+
+.rotom-ai-source__number {
+  display: flex;
+
+  width: 20px;
+  height: 20px;
+
+  flex-shrink: 0;
+
+  align-items: center;
+
+  justify-content: center;
+
+  border-radius: 5px;
+
+  background: var(--rotom-ai-ink);
+
+  color: white;
+
+  font-size: 8px;
+
+  font-weight: 900;
+}
+
+.rotom-ai-source__title {
+  min-width: 0;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+}
+
+.rotom-ai-source__arrow {
+  margin-left: auto;
+
+  flex-shrink: 0;
+}
+
+/* =========================================================
+   THINKING
+========================================================= */
+
+.rotom-ai-thinking {
+  align-self: flex-start;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 9px;
+
+  padding: 10px 13px;
+
+  border: 3px solid var(--rotom-ai-ink);
+
+  border-radius: 17px 17px 17px 5px;
+
+  background: var(--rotom-ai-screen);
+
+  box-shadow: 3px 3px 0 var(--rotom-ai-ink);
+}
+
+.rotom-ai-thinking > img {
+  width: 28px;
+  height: 28px;
+
+  object-fit: contain;
+
+  animation: rotomThinkingIcon 750ms ease-in-out infinite;
+}
+
+.rotom-ai-thinking__dots {
+  display: flex;
+
+  gap: 4px;
+}
+
+.rotom-ai-thinking__dots span {
+  width: 7px;
+  height: 7px;
+
+  border-radius: 50%;
+
+  background: var(--rotom-ai-red);
+
+  animation: rotomThinkingDot 760ms ease-in-out infinite;
+}
+
+.rotom-ai-thinking__dots span:nth-child(2) {
+  background: var(--rotom-ai-yellow);
+
+  animation-delay: 100ms;
+}
+
+.rotom-ai-thinking__dots span:nth-child(3) {
+  background: #06b6d4;
+
+  animation-delay: 200ms;
+}
+
+.rotom-ai-thinking__label {
+  color: rgba(38, 70, 83, 0.6);
+
+  font-size: 9px;
+
+  font-weight: 900;
+
+  text-transform: uppercase;
+}
+
+/* =========================================================
+   QUICK PROMPTS
+========================================================= */
+
+.rotom-ai-quick {
+  flex-shrink: 0;
+
+  padding: 10px 12px;
+
+  border-top: 2px solid rgba(38, 70, 83, 0.12);
+
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.rotom-ai-quick__label {
+  margin-bottom: 7px;
+
+  color: rgba(38, 70, 83, 0.5);
+
+  font-family: var(--font-device, monospace);
+
+  font-size: 7px;
+
+  font-weight: 700;
+
+  letter-spacing: 0.09em;
+
+  text-transform: uppercase;
+}
+
+.rotom-ai-quick__items {
+  display: flex;
+
+  gap: 8px;
+
+  overflow-x: auto;
+
+  padding-bottom: 3px;
+}
+
+.rotom-ai-quick__items button {
+  flex-shrink: 0;
+
+  padding: 8px 10px;
+
+  border: 2px solid var(--rotom-ai-ink);
+
+  border-radius: 10px;
+
+  background: white;
+
+  color: var(--rotom-ai-ink);
+
+  cursor: pointer;
+
+  font-size: 9px;
+
+  font-weight: 700;
+
+  box-shadow: 2px 2px 0 var(--rotom-ai-ink);
+}
+
+.rotom-ai-quick__items button:hover {
+  transform: translateY(-2px);
+
+  background: #fffbea;
+}
+
+/* =========================================================
+   ERROR
+========================================================= */
+
+.rotom-ai-error {
+  flex-shrink: 0;
+
+  padding: 9px 14px;
+
+  border-top: 2px solid #fecaca;
+
+  background: #fef2f2;
+
+  color: #b91c1c;
+
+  font-size: 10px;
+
+  font-weight: 700;
+}
+
+/* =========================================================
+   COMPOSER
+========================================================= */
+
+.rotom-ai-composer {
+  flex-shrink: 0;
+
+  padding: 12px;
+
+  border-top: 3px solid var(--rotom-ai-ink);
+
+  background: white;
+}
+
+.rotom-ai-composer__row {
+  display: flex;
+
+  align-items: flex-end;
+
+  gap: 8px;
+}
+
+.rotom-ai-composer__field {
+  min-width: 0;
+
+  flex: 1;
+}
+
+.rotom-ai-composer textarea {
+  display: block;
+
+  box-sizing: border-box;
+
+  width: 100%;
+
+  min-height: 46px;
+
+  max-height: 130px;
+
+  resize: vertical;
+
+  padding: 10px 12px;
+
+  border: 3px solid var(--rotom-ai-ink);
+
+  border-radius: 12px;
+
+  outline: none;
+
+  background: var(--rotom-ai-screen);
+
+  color: var(--rotom-ai-ink);
+
+  font-size: 14px;
+
+  font-weight: 600;
+
+  line-height: 1.4;
+}
+
+.rotom-ai-composer textarea:focus {
+  box-shadow: 0 0 0 4px rgba(255, 214, 10, 0.25);
+}
+
+.rotom-ai-composer__meta {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 8px;
+
+  margin-top: 4px;
+
+  padding: 0 4px;
+
+  color: rgba(38, 70, 83, 0.4);
+
+  font-size: 7px;
+
+  font-weight: 700;
+}
+
+/* =========================================================
+   SEND
+========================================================= */
+
+.rotom-ai-composer__send {
+  display: flex;
+
+  width: 52px;
+  height: 46px;
+
+  flex-shrink: 0;
+
+  align-items: center;
+
+  justify-content: center;
+
+  border: 3px solid var(--rotom-ai-ink);
+
+  border-radius: 12px;
+
+  background: var(--rotom-ai-red);
+
+  color: white;
+
+  cursor: pointer;
+
+  font-size: 18px;
+
+  font-weight: 900;
+
+  box-shadow: 3px 3px 0 var(--rotom-ai-ink);
+}
+
+.rotom-ai-composer__send:hover:not(:disabled) {
+  transform: translateY(-2px);
+
+  background: var(--rotom-ai-red-light);
+}
+
+.rotom-ai-composer__send:disabled {
+  cursor: not-allowed;
+
+  opacity: 0.4;
+}
+
+/* =========================================================
+   COMPOSER FOOTER
+========================================================= */
+
+.rotom-ai-composer__footer {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 12px;
+
+  margin-top: 7px;
+}
+
+.rotom-ai-composer__footer p {
+  margin-left: auto;
+
+  color: rgba(38, 70, 83, 0.4);
+
+  font-size: 7px;
+
+  font-weight: 600;
+
+  text-align: right;
+}
+
+.rotom-ai-composer__mobile-clear {
+  border: 0;
+
+  background: transparent;
+
+  color: rgba(38, 70, 83, 0.55);
+
+  cursor: pointer;
+
+  font-size: 8px;
+
+  font-weight: 900;
+
+  text-transform: uppercase;
+}
+
+/* =========================================================
+   ANIMATIONS
+========================================================= */
+
+@keyframes rotomIdleFloat {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+
+  50% {
+    transform: translateY(-5px) rotate(2deg);
+  }
+}
+
+@keyframes rotomDockFloat {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1deg);
+  }
+
+  50% {
+    transform: translateY(-3px) rotate(1deg);
+  }
+}
+
+@keyframes rotomElectricGlow {
+  from {
+    opacity: 0.45;
+
+    transform: scale(0.86);
+  }
+
+  to {
+    opacity: 1;
+
+    transform: scale(1.16);
+  }
+}
+
+@keyframes rotomElectricRingOne {
+  from {
+    transform: rotate(0deg) scale(0.9);
+  }
+
+  50% {
+    transform: rotate(180deg) scale(1.04);
+  }
+
+  to {
+    transform: rotate(360deg) scale(0.9);
+  }
+}
+
+@keyframes rotomElectricRingTwo {
+  from {
+    transform: rotate(0deg) scale(0.92);
+  }
+
+  50% {
+    transform: rotate(180deg) scale(1.08);
+  }
+
+  to {
+    transform: rotate(360deg) scale(0.92);
+  }
+}
+
+@keyframes rotomBoltFlash {
+  0% {
+    opacity: 0.08;
+
+    filter: brightness(1);
+  }
+
+  40% {
+    opacity: 1;
+
+    filter: brightness(2);
+  }
+
+  60% {
+    opacity: 0.25;
+  }
+
+  100% {
+    opacity: 0.75;
+  }
+}
+
+@keyframes rotomSpark {
+  0%,
+  100% {
+    opacity: 0.1;
+
+    transform: scale(0.4);
+  }
+
+  50% {
+    opacity: 1;
+
+    transform: scale(1.3);
+  }
+}
+
+@keyframes rotomTeleport {
+  0% {
+    opacity: 1;
+
+    transform: scale(1);
+
+    filter: brightness(1);
+  }
+
+  36% {
+    opacity: 1;
+
+    transform: scale(1.28);
+
+    filter: brightness(2.8) saturate(2);
+  }
+
+  51% {
+    opacity: 0;
+
+    transform: scale(0.08);
+
+    filter: brightness(5);
+  }
+
+  66% {
+    opacity: 0;
+
+    transform: scale(0.12);
+
+    filter: brightness(4);
+  }
+
+  100% {
+    opacity: 1;
+
+    transform: scale(1);
+
+    filter: brightness(1);
+  }
+}
+
+@keyframes rotomDockAppear {
+  from {
+    opacity: 0;
+
+    transform: translateY(15px) scale(0.65);
+  }
+
+  to {
+    opacity: 1;
+
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes rotomBubbleAppearMobile {
+  from {
+    opacity: 0;
+
+    transform: translateY(7px) scale(0.82);
+
+    transform-origin: bottom right;
+  }
+
+  to {
+    opacity: 1;
+
+    transform: translateY(0) scale(1);
+
+    transform-origin: bottom right;
+  }
+}
+
+@keyframes rotomBubbleFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes rotomModalIn {
+  from {
+    opacity: 0;
+
+    transform: translateY(25px) scale(0.92);
+  }
+
+  to {
+    opacity: 1;
+
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes rotomStatusPulse {
+  0%,
+  100% {
+    opacity: 0.5;
+
+    transform: scale(0.85);
+  }
+
+  50% {
+    opacity: 1;
+
+    transform: scale(1.15);
+  }
+}
+
+@keyframes rotomThinkingIcon {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-4deg);
+  }
+
+  50% {
+    transform: translateY(-4px) rotate(4deg);
+  }
+}
+
+@keyframes rotomThinkingDot {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-5px);
+  }
+}
+/* =========================================================
+   TABLET / DESKTOP
+
+   Rotom sits farther LEFT of Buddy.
+========================================================= */
+
+@media (min-width: 640px) {
+  .rotom-ai-launcher {
+    width: 78px;
+    height: 78px;
+  }
+
+  .rotom-ai-launcher--docked {
+    /*
+     * More horizontal breathing room
+     * from the Buddy button.
+     */
+    right: 11.25rem;
+
+    bottom: 1.15rem;
+
+    width: 66px;
+    height: 66px;
+  }
+
+  .rotom-ai-launcher--docked.rotom-ai-launcher--solo {
+    right: 1.5rem;
+
+    bottom: 1.5rem;
+  }
+
+  .rotom-ai-message {
+    max-width: 84%;
+
+    padding: 12px 14px;
+  }
+
+  .rotom-ai-message__content {
+    font-size: 14px;
+
+    line-height: 1.65;
+  }
+
+  .rotom-ai-screen__status-right {
+    display: inline;
+  }
+
+  .rotom-ai-composer__mobile-clear {
+    display: none;
+  }
+}
+
+/* =========================================================
+   LARGE DESKTOP
+
+   Even more separation on wide screens.
+========================================================= */
+
+@media (min-width: 1024px) {
+  .rotom-ai-launcher--docked {
+    right: 12.5rem;
+
+    bottom: 1.65rem;
+  }
+
+  .rotom-ai-launcher--docked.rotom-ai-launcher--solo {
+    right: 2rem;
+
+    bottom: 2rem;
+  }
+}
+/* =========================================================
+   REDUCED MOTION
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .rotom-ai-launcher__icon,
+  .rotom-ai-nudge__text,
+  .rotom-ai-modal__online-dot,
+  .rotom-ai-screen__status-dot,
+  .rotom-ai-thinking > img,
+  .rotom-ai-thinking__dots span {
+    animation: none;
+  }
+}

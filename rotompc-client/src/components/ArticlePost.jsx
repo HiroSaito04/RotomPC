@@ -1,287 +1,1239 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import Button from '@/components/Button.jsx';
-import * as articleService from '@/services/ArticleService';
+// rotompc-client/src/components/ArticlePost.jsx
+
+import React, { useState } from "react";
+
+import { useNavigate } from "react-router-dom";
+
+import Button from "@/components/Button.jsx";
+
+import * as articleService from "@/services/ArticleService";
+
+/* =========================================================
+   COLORS
+========================================================= */
 
 const COLOR_OPTIONS = [
-  { value: 'bg-pink-500', label: 'Pink' },
-  { value: 'bg-blue-500', label: 'Blue' },
-  { value: 'bg-yellow-400', label: 'Yellow' },
-  { value: 'bg-purple-600', label: 'Purple' },
-  { value: 'bg-indigo-800', label: 'Indigo' },
-  { value: 'bg-green-600', label: 'Green' },
-  { value: 'bg-orange-600', label: 'Orange' },
-  { value: 'bg-cyan-400', label: 'Cyan' },
-  { value: 'bg-zinc-500', label: 'Zinc' }
+  {
+    value: "bg-pink-500",
+    label: "Pink",
+  },
+  {
+    value: "bg-blue-500",
+    label: "Blue",
+  },
+  {
+    value: "bg-yellow-400",
+    label: "Yellow",
+  },
+  {
+    value: "bg-purple-600",
+    label: "Purple",
+  },
+  {
+    value: "bg-indigo-800",
+    label: "Indigo",
+  },
+  {
+    value: "bg-green-600",
+    label: "Green",
+  },
+  {
+    value: "bg-orange-600",
+    label: "Orange",
+  },
+  {
+    value: "bg-cyan-400",
+    label: "Cyan",
+  },
+  {
+    value: "bg-zinc-500",
+    label: "Zinc",
+  },
 ];
+
+/* =========================================================
+   ARTICLE POST
+========================================================= */
 
 const ArticlePost = ({ isOpen, onClose, onRefresh }) => {
   const navigate = useNavigate();
-  const [title, setTitle] = useState('');
-  const [desc, setDesc] = useState('');
-  const [content, setContent] = useState('');
+
+  const [title, setTitle] = useState("");
+
+  const [desc, setDesc] = useState("");
+
+  const [content, setContent] = useState("");
+
   const [imageFile, setImageFile] = useState(null);
-  const [imageUrl, setImageUrl] = useState('');
-  const [color, setColor] = useState('bg-zinc-500'); 
+
+  const [imageUrl, setImageUrl] = useState("");
+
+  const [color, setColor] = useState("bg-zinc-500");
+
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  
-  // Controls localized state machine screen views: 'edit' or 'confirm'
-  const [formStep, setFormStep] = useState('edit');
 
-  if (!isOpen) return null;
+  const [error, setError] = useState("");
 
-  // Retrieve tokens and database identifiers
-  const activeToken = localStorage.getItem('token');
-  const activeUserId = localStorage.getItem('id'); 
-  
-  // Safe parsing loop for localized identity objects
-  const rawUserData = localStorage.getItem('user');
-  let activeUsername = '';
+  const [success, setSuccess] = useState("");
+
+  const [formStep, setFormStep] = useState("edit");
+
+  /* =======================================================
+     SESSION
+  ======================================================= */
+
+  const activeToken = localStorage.getItem("token");
+
+  const activeUserId = localStorage.getItem("id");
+
+  const rawUserData = localStorage.getItem("user");
+
+  let activeUsername = localStorage.getItem("firstName") || "Trainer";
 
   if (rawUserData) {
     try {
-      if (rawUserData.trim().startsWith('{')) {
+      if (rawUserData.trim().startsWith("{")) {
         const parsed = JSON.parse(rawUserData);
-        activeUsername = parsed.username || '';
+
+        activeUsername = parsed.username || parsed.firstName || activeUsername;
       } else {
-        activeUsername = rawUserData;
+        activeUsername = rawUserData || activeUsername;
       }
-    } catch (e) {
-      console.error("Identity extraction failure:", e);
-      activeUsername = rawUserData;
+    } catch (identityError) {
+      console.error("Identity extraction failure:", identityError);
     }
   }
 
-  const isLoggedIn = !!(activeToken && activeUserId && activeUsername);
+  /*
+   * IMPORTANT:
+   *
+   * Do not require username here.
+   * Authentication is token + user id.
+   *
+   * The server determines article author
+   * from the authenticated user anyway.
+   */
+  const isLoggedIn = Boolean(activeToken && activeUserId);
 
-  // Initial validation checks before loading the confirmation terminal
-  const handlePreSubmitValidation = (e) => {
-    e.preventDefault();
-    if (!title || !content) {
-      setError('Title and Content updates are mandatory operational parameters.');
-      return;
-    }
-    setError('');
-    setFormStep('confirm');
+  /* =======================================================
+     CLOSED
+  ======================================================= */
+
+  if (!isOpen) {
+    return null;
+  }
+
+  /* =======================================================
+     RESET
+  ======================================================= */
+
+  const resetForm = () => {
+    setTitle("");
+    setDesc("");
+    setContent("");
+
+    setImageFile(null);
+
+    setImageUrl("");
+
+    setColor("bg-zinc-500");
+
+    setFormStep("edit");
+
+    setError("");
+    setSuccess("");
   };
 
-  // Finalized data transmission execution path
+  /* =======================================================
+     VALIDATION
+  ======================================================= */
+
+  const handlePreSubmitValidation = (event) => {
+    event.preventDefault();
+
+    const cleanTitle = title.trim();
+
+    const cleanContent = content.trim();
+
+    if (!cleanTitle) {
+      setError("Post title is required.");
+
+      return;
+    }
+
+    if (!cleanContent) {
+      setError("Post content is required.");
+
+      return;
+    }
+
+    if (cleanTitle.length > 150) {
+      setError("Post title cannot exceed 150 characters.");
+
+      return;
+    }
+
+    if (desc.trim().length > 500) {
+      setError("Subtitle cannot exceed 500 characters.");
+
+      return;
+    }
+
+    setError("");
+
+    setFormStep("confirm");
+  };
+
+  /* =======================================================
+     SUBMIT
+  ======================================================= */
+
   const handleFinalSubmit = async () => {
-    // CRITICAL: Hard lock guard preventing network interface duplication
-    if (loading) return; 
+    if (loading) {
+      return;
+    }
+
+    if (!isLoggedIn) {
+      setError("Your login session is unavailable. Please sign in again.");
+
+      return;
+    }
 
     try {
       setLoading(true);
-      setError('');
+
+      setError("");
+      setSuccess("");
 
       const formData = new FormData();
-      formData.append('title', title);
-      formData.append('desc', desc);
-      formData.append('content', content);
-      formData.append('userId', activeUserId);
-      formData.append('author', activeUsername);
-      formData.append('status', 'active');
-      formData.append('color', color); 
+
+      formData.append("title", title.trim());
+
+      formData.append("desc", desc.trim());
+
+      formData.append("content", content.trim());
+
+      formData.append("color", color);
+
+      /*
+       * Server uses req.user to determine:
+       *
+       * userId
+       * author
+       * status
+       *
+       * Do not trust client identity fields.
+       */
 
       if (imageFile) {
-        formData.append('image', imageFile);
-      } else if (imageUrl) {
-        formData.append('image', imageUrl);
+        formData.append("image", imageFile);
+      } else if (imageUrl.trim()) {
+        /*
+         * Your current articleController
+         * reads req.body.image for URLs.
+         */
+        formData.append("image", imageUrl.trim());
       }
 
-      await articleService.createArticle(formData);
-      
-      // Complete state clearance reset
-      setTitle('');
-      setDesc('');
-      setContent('');
-      setImageFile(null);
-      setImageUrl('');
-      setColor('bg-zinc-500');
-      setFormStep('edit');
-      
-      onRefresh();
-      onClose();
+      const response = await articleService.createArticle(formData);
+
+      const berryReward = Number(response.data?.berryReward) || 0;
+
+      if (berryReward > 0) {
+        setSuccess(`Report published. +${berryReward} berries.`);
+      } else {
+        setSuccess("Report published.");
+      }
+
+      if (typeof onRefresh === "function") {
+        await onRefresh();
+      }
+
+      window.setTimeout(() => {
+        resetForm();
+
+        if (typeof onClose === "function") {
+          onClose();
+        }
+      }, 500);
     } catch (err) {
-      setError(err.response?.data?.message || 'Mainframe interface submission failure.');
-      // Drop back to edit layout if a transmission exception occurs
-      setFormStep('edit');
+      console.error("Article submission failed:", err);
+
+      const status = err.response?.status;
+
+      if (status === 401 || status === 403) {
+        setError(
+          err.response?.data?.message ||
+            "Your login session is no longer valid. Sign in again.",
+        );
+      } else {
+        setError(
+          err.response?.data?.message ||
+            err.message ||
+            "Unable to publish report.",
+        );
+      }
+
+      setFormStep("edit");
     } finally {
       setLoading(false);
     }
   };
 
+  /* =======================================================
+     LOGIN
+  ======================================================= */
+
   const handleRedirectToLogin = () => {
-    onClose();
-    navigate('/auth/signin');
+    resetForm();
+
+    if (typeof onClose === "function") {
+      onClose();
+    }
+
+    navigate("/auth/signin");
   };
+
+  /* =======================================================
+     CLOSE
+  ======================================================= */
 
   const handleCancelClose = () => {
-    setFormStep('edit');
-    onClose();
+    if (loading) {
+      return;
+    }
+
+    resetForm();
+
+    if (typeof onClose === "function") {
+      onClose();
+    }
   };
 
+  /* =======================================================
+     UI
+  ======================================================= */
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 font-sans p-4 backdrop-blur-xs">
-      <div className="w-full max-w-lg border-4 border-zinc-950 bg-zinc-900 text-white rounded-[2rem] p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col gap-4 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
-        
-        {/* Header Block */}
-        <div className="flex items-center justify-between border-b-2 border-zinc-800 pb-2">
-          <h3 className="text-xl font-black uppercase italic tracking-tight text-yellow-400">
-            {!isLoggedIn ? '🔒 Access Denied' : formStep === 'confirm' ? '⚠️ Final Verification' : '📡 Create New Post'}
-          </h3>
-          <button 
-            onClick={handleCancelClose} 
-            className="text-zinc-500 hover:text-white font-black text-sm uppercase tracking-widest transition-colors"
+    <div
+      className="
+        fixed
+        inset-0
+        z-[150]
+
+        flex
+        items-end
+        justify-center
+
+        bg-black/70
+
+        p-0
+
+        font-sans
+
+        backdrop-blur-sm
+
+        sm:items-center
+        sm:p-4
+      "
+    >
+      <div
+        className="
+          flex
+          max-h-[92dvh]
+          w-full
+          max-w-lg
+          flex-col
+
+          overflow-y-auto
+
+          rounded-t-[2rem]
+
+          border-4
+          border-zinc-950
+
+          bg-zinc-900
+
+          p-5
+
+          text-white
+
+          shadow-[8px_8px_0_rgba(0,0,0,1)]
+
+          animate-in
+          fade-in
+          zoom-in-95
+
+          duration-150
+
+          sm:rounded-[2rem]
+          sm:p-6
+        "
+      >
+        {/* =================================================
+            HEADER
+        ================================================== */}
+
+        <div
+          className="
+            flex
+            items-center
+            justify-between
+            gap-4
+
+            border-b-2
+            border-zinc-800
+
+            pb-3
+          "
+        >
+          <div
+            className="
+              min-w-0
+            "
           >
-            [ESC]
+            <p
+              className="
+                text-[8px]
+                font-black
+                uppercase
+                tracking-[0.14em]
+
+                text-zinc-500
+              "
+            >
+              PokéSocial
+            </p>
+
+            <h3
+              className="
+                mt-1
+
+                truncate
+
+                text-xl
+                font-black
+                uppercase
+                italic
+                tracking-tight
+
+                text-yellow-400
+              "
+            >
+              {!isLoggedIn
+                ? "Access Required"
+                : formStep === "confirm"
+                  ? "Review Post"
+                  : "Create Post"}
+            </h3>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleCancelClose}
+            disabled={loading}
+            aria-label="Close post editor"
+            className="
+              flex
+              h-9
+              w-9
+              shrink-0
+              items-center
+              justify-center
+
+              rounded-xl
+
+              border-2
+              border-zinc-700
+
+              bg-zinc-950
+
+              text-lg
+              font-black
+
+              text-zinc-400
+
+              transition
+
+              hover:border-zinc-500
+              hover:text-white
+
+              disabled:cursor-not-allowed
+              disabled:opacity-50
+            "
+          >
+            ×
           </button>
         </div>
 
+        {/* =================================================
+            NOT LOGGED IN
+        ================================================== */}
+
         {!isLoggedIn ? (
-          <div className="flex flex-col items-center text-center py-6 gap-6">
-            <div className="h-16 w-16 flex items-center justify-center rounded-2xl bg-red-950 border-2 border-red-500 text-3xl shadow-inner animate-pulse">🚫</div>
-            <div className="flex flex-col gap-2">
-              <h4 className="text-lg font-bold uppercase tracking-tight text-zinc-200">Unauthenticated User</h4>
-              <p className="text-zinc-400 text-xs max-w-xs leading-relaxed">
-                Log In to Post an Article. Anonymous article postings are strictly prohibited on this regional network frequency.
+          <div
+            className="
+              flex
+              flex-col
+              items-center
+              gap-5
+
+              py-8
+
+              text-center
+            "
+          >
+            <div
+              className="
+                flex
+                h-16
+                w-16
+                items-center
+                justify-center
+
+                rounded-2xl
+
+                border-2
+                border-red-500
+
+                bg-red-950
+
+                text-3xl
+              "
+            >
+              🔒
+            </div>
+
+            <div>
+              <h4
+                className="
+                  text-lg
+                  font-black
+                  uppercase
+
+                  text-zinc-100
+                "
+              >
+                Sign In Required
+              </h4>
+
+              <p
+                className="
+                  mx-auto
+                  mt-2
+                  max-w-xs
+
+                  text-xs
+                  font-medium
+                  leading-5
+
+                  text-zinc-400
+                "
+              >
+                Sign in to publish a PokéSocial report.
               </p>
             </div>
-            <Button type="button" onClick={handleRedirectToLogin} variant="primary" size="md" className="w-full mt-2 bg-yellow-400 text-zinc-950 border-zinc-950 hover:bg-yellow-500 font-black uppercase tracking-wider">
-              Sign In to RotomPC
+
+            <Button
+              type="button"
+              onClick={handleRedirectToLogin}
+              variant="primary"
+              size="md"
+              className="
+                w-full
+
+                bg-yellow-400
+
+                font-black
+
+                text-zinc-950
+              "
+            >
+              Sign In
             </Button>
           </div>
         ) : (
           <>
+            {/* =============================================
+                ERROR
+            ============================================== */}
+
             {error && (
-              <div className="bg-red-950 border border-red-500 text-red-200 text-xs px-3 py-2 rounded-lg font-bold">
-                ⚠️ {error}
+              <div
+                className="
+                  mt-4
+
+                  rounded-xl
+
+                  border-2
+                  border-red-500
+
+                  bg-red-950
+
+                  px-3
+                  py-2.5
+
+                  text-xs
+                  font-bold
+
+                  text-red-200
+                "
+              >
+                {error}
               </div>
             )}
 
-            {formStep === 'confirm' ? (
-              /* --- CONFIRMATION SUB-SCREEN --- */
-              <div className="flex flex-col gap-4 py-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                <div className="rounded-xl border-2 border-dashed border-yellow-400/50 bg-yellow-500/5 p-4 flex flex-col gap-3">
-                  <div className="flex items-center gap-2 text-xs font-black text-yellow-400 uppercase tracking-widest">
-                    <span className="animate-ping h-2 w-2 rounded-full bg-yellow-400 inline-block mr-1" />
-                    Review Terminal Payload
-                  </div>
-                  
-                  <div className="flex flex-col gap-1 border-l-2 border-zinc-700 pl-3">
-                    <span className="text-[10px] uppercase text-zinc-500 font-bold">Data Title</span>
-                    <p className="text-sm font-black text-white italic uppercase">{title}</p>
-                  </div>
+            {/* =============================================
+                SUCCESS
+            ============================================== */}
+
+            {success && (
+              <div
+                className="
+                  mt-4
+
+                  rounded-xl
+
+                  border-2
+                  border-green-500
+
+                  bg-green-950
+
+                  px-3
+                  py-2.5
+
+                  text-xs
+                  font-bold
+
+                  text-green-200
+                "
+              >
+                {success}
+              </div>
+            )}
+
+            {/* =============================================
+                CONFIRM
+            ============================================== */}
+
+            {formStep === "confirm" ? (
+              <div
+                className="
+                  flex
+                  flex-col
+                  gap-4
+
+                  py-4
+
+                  animate-in
+                  fade-in
+                  slide-in-from-bottom-2
+                "
+              >
+                <div
+                  className="
+                    rounded-2xl
+
+                    border-2
+                    border-yellow-400/50
+
+                    bg-yellow-400/5
+
+                    p-4
+                  "
+                >
+                  <p
+                    className="
+                      text-[9px]
+                      font-black
+                      uppercase
+                      tracking-[0.12em]
+
+                      text-yellow-400
+                    "
+                  >
+                    Review Post
+                  </p>
+
+                  <h4
+                    className="
+                      mt-3
+
+                      text-lg
+                      font-black
+                      uppercase
+                      leading-tight
+
+                      text-white
+                    "
+                  >
+                    {title}
+                  </h4>
 
                   {desc && (
-                    <div className="flex flex-col gap-1 border-l-2 border-zinc-700 pl-3">
-                      <span className="text-[10px] uppercase text-zinc-500 font-bold">Subtitle Metadata</span>
-                      <p className="text-xs text-zinc-300 font-medium">{desc}</p>
-                    </div>
+                    <p
+                      className="
+                        mt-2
+
+                        text-xs
+                        font-medium
+                        leading-5
+
+                        text-zinc-400
+                      "
+                    >
+                      {desc}
+                    </p>
                   )}
 
-                  <div className="flex flex-col gap-1 border-l-2 border-zinc-700 pl-3">
-                    <span className="text-[10px] uppercase text-zinc-500 font-bold">Color ID Signature</span>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className={`h-3 w-3 rounded-full ${color} border border-white/20`} />
-                      <span className="text-xs font-mono uppercase text-zinc-400">{color}</span>
-                    </div>
+                  <div
+                    className="
+                      mt-4
+
+                      flex
+                      items-center
+                      gap-2
+                    "
+                  >
+                    <span
+                      className={`
+                        h-3
+                        w-3
+
+                        rounded-full
+
+                        border
+                        border-white/20
+
+                        ${color}
+                      `}
+                    />
+
+                    <span
+                      className="
+                        text-[9px]
+                        font-bold
+                        uppercase
+
+                        text-zinc-500
+                      "
+                    >
+                      {activeUsername}
+                    </span>
                   </div>
                 </div>
 
-                <p className="text-zinc-400 text-xs leading-relaxed px-1">
-                  Confirm global transmission to the main terminal network. Once written to the system grid, logs cannot be instantly un-sent.
-                </p>
+                <div
+                  className="
+                    grid
+                    grid-cols-2
+                    gap-3
 
-                {/* Secure Interaction Actions */}
-                <div className="flex justify-end gap-2 pt-3 border-t border-zinc-800 mt-2">
-                  <Button 
-                    type="button" 
-                    onClick={() => setFormStep('edit')} 
-                    variant="secondary" 
+                    border-t
+                    border-zinc-800
+
+                    pt-4
+                  "
+                >
+                  <Button
+                    type="button"
+                    onClick={() => setFormStep("edit")}
+                    variant="secondary"
                     size="sm"
                     disabled={loading}
                   >
-                    BACK TO EDIT
+                    Back
                   </Button>
-                  <Button 
-                    type="button" 
-                    onClick={handleFinalSubmit} 
-                    variant="primary" 
-                    size="sm" 
+
+                  <Button
+                    type="button"
+                    onClick={handleFinalSubmit}
+                    variant="primary"
+                    size="sm"
                     disabled={loading}
-                    className="bg-yellow-400 text-zinc-950 border-zinc-950 hover:bg-yellow-500 font-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+                    className="
+                      bg-yellow-400
+
+                      font-black
+
+                      text-zinc-950
+                    "
                   >
-                    {loading ? 'BROADCASTING...' : 'CONFIRM & TRANSMIT'}
+                    {loading ? "Publishing..." : "Publish"}
                   </Button>
                 </div>
               </div>
             ) : (
-              /* --- STANDARD EDIT FORM --- */
-              <form onSubmit={handlePreSubmitValidation} className="flex flex-col gap-3">
-                {/* Title Field */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-black tracking-widest text-zinc-400 uppercase">Post Title</label>
-                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g., Snorlax Blockade Route 11" className="bg-zinc-950 border-2 border-zinc-800 rounded-lg p-2 text-xs font-bold text-white focus:outline-none focus:border-yellow-400" />
+              /* ===========================================
+                 EDIT FORM
+              ============================================ */
+
+              <form
+                onSubmit={handlePreSubmitValidation}
+                className="
+                  mt-4
+
+                  flex
+                  flex-col
+                  gap-4
+                "
+              >
+                {/* TITLE */}
+
+                <div>
+                  <div
+                    className="
+                      mb-1.5
+
+                      flex
+                      items-center
+                      justify-between
+                    "
+                  >
+                    <label
+                      htmlFor="article-title"
+                      className="
+                        text-[10px]
+                        font-black
+                        uppercase
+                        tracking-[0.1em]
+
+                        text-zinc-400
+                      "
+                    >
+                      Post Title
+                    </label>
+
+                    <span
+                      className="
+                        text-[9px]
+                        font-bold
+
+                        text-zinc-600
+                      "
+                    >
+                      {title.length}
+                      /150
+                    </span>
+                  </div>
+
+                  <input
+                    id="article-title"
+                    type="text"
+                    value={title}
+                    maxLength={150}
+                    onChange={(event) => setTitle(event.target.value)}
+                    placeholder="Report title"
+                    className="
+                      min-h-12
+                      w-full
+
+                      rounded-xl
+
+                      border-2
+                      border-zinc-700
+
+                      bg-zinc-950
+
+                      px-3
+
+                      text-sm
+                      font-bold
+
+                      text-white
+
+                      outline-none
+
+                      placeholder:text-zinc-600
+
+                      focus:border-yellow-400
+                    "
+                  />
                 </div>
 
-                {/* Subtitle Field */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-black tracking-widest text-zinc-400 uppercase">Brief Subtitle Descriptor</label>
-                  <input type="text" value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Summary data logs..." className="bg-zinc-950 border-2 border-zinc-800 rounded-lg p-2 text-xs font-bold text-white focus:outline-none focus:border-yellow-400" />
+                {/* DESCRIPTION */}
+
+                <div>
+                  <div
+                    className="
+                      mb-1.5
+
+                      flex
+                      items-center
+                      justify-between
+                    "
+                  >
+                    <label
+                      htmlFor="article-desc"
+                      className="
+                        text-[10px]
+                        font-black
+                        uppercase
+                        tracking-[0.1em]
+
+                        text-zinc-400
+                      "
+                    >
+                      Description
+                    </label>
+
+                    <span
+                      className="
+                        text-[9px]
+                        font-bold
+
+                        text-zinc-600
+                      "
+                    >
+                      {desc.length}
+                      /500
+                    </span>
+                  </div>
+
+                  <input
+                    id="article-desc"
+                    type="text"
+                    value={desc}
+                    maxLength={500}
+                    onChange={(event) => setDesc(event.target.value)}
+                    placeholder="Short summary"
+                    className="
+                      min-h-12
+                      w-full
+
+                      rounded-xl
+
+                      border-2
+                      border-zinc-700
+
+                      bg-zinc-950
+
+                      px-3
+
+                      text-sm
+                      font-medium
+
+                      text-white
+
+                      outline-none
+
+                      placeholder:text-zinc-600
+
+                      focus:border-yellow-400
+                    "
+                  />
                 </div>
 
-                {/* Content Field */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-black tracking-widest text-zinc-400 uppercase">Post Content</label>
-                  <textarea rows="3" value={content} onChange={(e) => setContent(e.target.value)} placeholder="Enter narrative fields here..." className="bg-zinc-950 border-2 border-zinc-800 rounded-lg p-2 text-xs font-bold text-white focus:outline-none focus:border-yellow-400 resize-none" />
-                </div>
+                {/* CONTENT */}
 
-                {/* Color Selection Matrix Grid */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-black tracking-widest text-zinc-400 uppercase">
-                    Article Color Theme
+                <div>
+                  <label
+                    htmlFor="article-content"
+                    className="
+                      text-[10px]
+                      font-black
+                      uppercase
+                      tracking-[0.1em]
+
+                      text-zinc-400
+                    "
+                  >
+                    Post Content
                   </label>
-                  <div className="grid grid-cols-3 gap-2 pt-1">
-                    {COLOR_OPTIONS.map((opt) => (
+
+                  <textarea
+                    id="article-content"
+                    rows={6}
+                    value={content}
+                    onChange={(event) => setContent(event.target.value)}
+                    placeholder="Write your report..."
+                    className="
+                      mt-1.5
+
+                      min-h-[140px]
+                      w-full
+                      resize-y
+
+                      rounded-xl
+
+                      border-2
+                      border-zinc-700
+
+                      bg-zinc-950
+
+                      p-3
+
+                      text-sm
+                      font-medium
+                      leading-6
+
+                      text-white
+
+                      outline-none
+
+                      placeholder:text-zinc-600
+
+                      focus:border-yellow-400
+                    "
+                  />
+                </div>
+
+                {/* COLOR */}
+
+                <div>
+                  <label
+                    className="
+                      text-[10px]
+                      font-black
+                      uppercase
+                      tracking-[0.1em]
+
+                      text-zinc-400
+                    "
+                  >
+                    Article Color
+                  </label>
+
+                  <div
+                    className="
+                      mt-2
+
+                      grid
+                      grid-cols-3
+                      gap-2
+                    "
+                  >
+                    {COLOR_OPTIONS.map((option) => (
                       <button
-                        key={opt.value}
+                        key={option.value}
                         type="button"
-                        onClick={() => setColor(opt.value)}
-                        className={`flex items-center gap-2 px-3 py-2 text-[10px] font-bold rounded-lg border-2 transition-all ${
-                          color === opt.value 
-                            ? 'border-yellow-400 scale-102 bg-zinc-800 text-white shadow-[2px_2px_0px_0px_rgba(250,204,21,1)]' 
-                            : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
-                        }`}
+                        onClick={() => setColor(option.value)}
+                        className={`
+                            flex
+                            items-center
+                            gap-2
+
+                            rounded-lg
+
+                            border-2
+
+                            px-3
+                            py-2
+
+                            text-[10px]
+                            font-bold
+
+                            transition
+
+                            ${
+                              color === option.value
+                                ? `
+                                    border-yellow-400
+                                    bg-zinc-800
+                                    text-white
+                                  `
+                                : `
+                                    border-zinc-800
+                                    bg-zinc-950
+                                    text-zinc-400
+
+                                    hover:border-zinc-700
+                                  `
+                            }
+                          `}
                       >
-                        <span className={`h-2.5 w-2.5 rounded-full ${opt.value} border border-white/20 shrink-0`} />
-                        <span className="truncate">{opt.label}</span>
+                        <span
+                          className={`
+                              h-2.5
+                              w-2.5
+                              shrink-0
+
+                              rounded-full
+
+                              border
+                              border-white/20
+
+                              ${option.value}
+                            `}
+                        />
+
+                        <span
+                          className="
+                              truncate
+                            "
+                        >
+                          {option.label}
+                        </span>
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Graphic Source Fields */}
-                <div className="border-t border-zinc-800 pt-2 flex flex-col gap-2">
-                  <label className="text-[10px] font-black tracking-widest text-zinc-400 uppercase">Attachment Graphic Source</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[8px] text-zinc-500 uppercase font-bold">Upload Binary Asset</span>
-                      <input type="file" accept="image/*" onChange={(e) => { setImageFile(e.target.files[0]); setImageUrl(''); }} className="text-[10px] text-zinc-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-black file:bg-zinc-800 file:text-white hover:file:bg-zinc-700 cursor-pointer" />
+                {/* IMAGE */}
+
+                <div
+                  className="
+                    border-t
+                    border-zinc-800
+
+                    pt-4
+                  "
+                >
+                  <label
+                    className="
+                      text-[10px]
+                      font-black
+                      uppercase
+                      tracking-[0.1em]
+
+                      text-zinc-400
+                    "
+                  >
+                    Image
+                  </label>
+
+                  <div
+                    className="
+                      mt-2
+
+                      grid
+                      gap-3
+
+                      sm:grid-cols-2
+                    "
+                  >
+                    <div>
+                      <p
+                        className="
+                          mb-1.5
+
+                          text-[8px]
+                          font-bold
+                          uppercase
+
+                          text-zinc-600
+                        "
+                      >
+                        Upload
+                      </p>
+
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0] || null;
+
+                          setImageFile(file);
+
+                          if (file) {
+                            setImageUrl("");
+                          }
+                        }}
+                        className="
+                          block
+                          w-full
+
+                          text-[10px]
+
+                          text-zinc-400
+
+                          file:mr-2
+                          file:rounded-lg
+                          file:border-0
+                          file:bg-zinc-800
+                          file:px-3
+                          file:py-2
+                          file:text-[10px]
+                          file:font-black
+                          file:text-white
+                        "
+                      />
                     </div>
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[8px] text-zinc-500 uppercase font-bold">External Web Address URL</span>
-                      <input type="text" value={imageUrl} disabled={!!imageFile} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://example.com/sprite.png" className="bg-zinc-950 border-2 border-zinc-800 rounded-lg p-1 text-[10px] font-bold text-white focus:outline-none focus:border-yellow-400 disabled:opacity-40" />
+
+                    <div>
+                      <p
+                        className="
+                          mb-1.5
+
+                          text-[8px]
+                          font-bold
+                          uppercase
+
+                          text-zinc-600
+                        "
+                      >
+                        Image URL
+                      </p>
+
+                      <input
+                        type="url"
+                        value={imageUrl}
+                        disabled={Boolean(imageFile)}
+                        onChange={(event) => setImageUrl(event.target.value)}
+                        placeholder="https://..."
+                        className="
+                          min-h-10
+                          w-full
+
+                          rounded-lg
+
+                          border-2
+                          border-zinc-800
+
+                          bg-zinc-950
+
+                          px-3
+
+                          text-[10px]
+                          font-medium
+
+                          text-white
+
+                          outline-none
+
+                          placeholder:text-zinc-700
+
+                          focus:border-yellow-400
+
+                          disabled:opacity-40
+                        "
+                      />
                     </div>
                   </div>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="flex justify-end gap-2 pt-2 border-t border-zinc-800 mt-2">
-                  <Button type="button" onClick={handleCancelClose} variant="secondary" size="sm">CANCEL</Button>
-                  <Button type="submit" variant="primary" size="sm">
-                    REVIEW ENTRY
+                {/* ACTIONS */}
+
+                <div
+                  className="
+                    grid
+                    grid-cols-2
+                    gap-3
+
+                    border-t
+                    border-zinc-800
+
+                    pt-4
+                  "
+                >
+                  <Button
+                    type="button"
+                    onClick={handleCancelClose}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    Cancel
+                  </Button>
+
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    className="
+                      font-black
+                    "
+                  >
+                    Review Post
                   </Button>
                 </div>
               </form>

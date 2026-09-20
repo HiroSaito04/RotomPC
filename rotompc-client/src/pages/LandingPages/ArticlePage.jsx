@@ -1,140 +1,599 @@
-// rotompc-client\src\pages\ArticlePage\ArticlePage.jsx
-import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import Button from '@/components/Button.jsx';
-import NotFoundPage from '@/pages/NotFoundPage.jsx';
-import * as articleService from '../../services/ArticleService';
+// rotompc-client/src/pages/ArticlePage/ArticlePage.jsx
+
+import React, { useEffect, useMemo, useState } from "react";
+
+import { useNavigate, useParams } from "react-router-dom";
+
+import Button from "@/components/Button.jsx";
+import NotFoundPage from "@/pages/NotFoundPage.jsx";
+
+import * as articleService from "@/services/ArticleService";
+
+const FALLBACK_IMAGE =
+  "https://ik.imagekit.io/ytwzizvepv/RotomPC/placeholder.png";
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+const getId = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value === "object") {
+    return value._id || value.id || null;
+  }
+
+  return value;
+};
+
+/* =========================================================
+   PAGE
+========================================================= */
 
 function ArticlePage() {
   const { name } = useParams();
+
+  const navigate = useNavigate();
+
   const [article, setArticle] = useState(null);
+
   const [loading, setLoading] = useState(true);
 
-const renderArticleImage = (row) => {
-  if (!row) return '';
+  const [loadError, setLoadError] = useState("");
 
-  if (row.imageBuffer && row.imageMimeType) {
-    const binaryString = typeof row.imageBuffer === 'string'
-      ? row.imageBuffer
-      : btoa(
-          new Uint8Array(row.imageBuffer.data || row.imageBuffer)
-            .reduce((data, byte) => data + String.fromCharCode(byte), '')
-        );
+  const [imageFailed, setImageFailed] = useState(false);
 
-    return `data:${row.imageMimeType};base64,${binaryString}`;
-  }
+  /* =======================================================
+     AUTH
+  ======================================================= */
 
-  if (row.imageUrl) return row.imageUrl;
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    Boolean(localStorage.getItem("token")),
+  );
 
-  if (row._id) return articleService.getArticleImageUrl(row._id);
+  const [currentUserId, setCurrentUserId] = useState(
+    localStorage.getItem("id"),
+  );
 
-  return 'https://ik.imagekit.io/ytwzizvepv/RotomPC/placeholder.png';
-};
+  const [currentRole, setCurrentRole] = useState(
+    localStorage.getItem("role") || "",
+  );
 
-  const getRelativeTime = (createdAtString) => {
-    if (!createdAtString) return 'RECENT';
+  /* =======================================================
+     LIKE
+  ======================================================= */
+
+  const [liked, setLiked] = useState(false);
+
+  const [likesCount, setLikesCount] = useState(0);
+
+  const [likeLoading, setLikeLoading] = useState(false);
+
+  const [interactionMessage, setInteractionMessage] = useState(null);
+
+  /* =======================================================
+     COMMENTS
+  ======================================================= */
+
+  const [comments, setComments] = useState([]);
+
+  const [commentsLoading, setCommentsLoading] = useState(false);
+
+  const [commentBody, setCommentBody] = useState("");
+
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
+
+  const [commentError, setCommentError] = useState("");
+
+  const [deletingCommentId, setDeletingCommentId] = useState(null);
+
+  /* =======================================================
+     DERIVED
+  ======================================================= */
+
+  const articleId = article?._id || null;
+
+  const articleOwnerId = getId(article?.userId);
+
+  const isOwnArticle = Boolean(
+    currentUserId &&
+    articleOwnerId &&
+    String(currentUserId) === String(articleOwnerId),
+  );
+
+  /* =======================================================
+     AUTH SYNC
+  ======================================================= */
+
+  useEffect(() => {
+    const syncAuth = () => {
+      setIsAuthenticated(Boolean(localStorage.getItem("token")));
+
+      setCurrentUserId(localStorage.getItem("id"));
+
+      setCurrentRole(localStorage.getItem("role") || "");
+    };
+
+    window.addEventListener("storage", syncAuth);
+
+    window.addEventListener("local-auth-update", syncAuth);
+
+    return () => {
+      window.removeEventListener("storage", syncAuth);
+
+      window.removeEventListener("local-auth-update", syncAuth);
+    };
+  }, []);
+
+  /* =======================================================
+     IMAGE
+  ======================================================= */
+
+  const articleImage = useMemo(() => {
+    if (!article) {
+      return FALLBACK_IMAGE;
+    }
+
+    if (article.imageUrl) {
+      return article.imageUrl;
+    }
+
+    if (article._id) {
+      return articleService.getArticleImageUrl(article._id) || FALLBACK_IMAGE;
+    }
+
+    return FALLBACK_IMAGE;
+  }, [article]);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [articleImage]);
+
+  /* =======================================================
+     TIME
+  ======================================================= */
+
+  const getRelativeTime = (value) => {
+    if (!value) {
+      return "RECENT";
+    }
 
     try {
       const dateValue =
-        typeof createdAtString === 'object' && createdAtString.$date
-          ? createdAtString.$date
-          : createdAtString;
+        typeof value === "object" && value.$date ? value.$date : value;
 
       const createdDate = new Date(dateValue);
-      const now = new Date();
-      const secondsDelta = Math.floor((now - createdDate) / 1000);
+
+      if (Number.isNaN(createdDate.getTime())) {
+        return "RECENT";
+      }
+
+      const secondsDelta = Math.max(
+        0,
+        Math.floor((Date.now() - createdDate.getTime()) / 1000),
+      );
+
+      if (secondsDelta < 60) {
+        return "JUST NOW";
+      }
 
       const intervals = [
-        { label: 'year', seconds: 31536000 },
-        { label: 'month', seconds: 2592000 },
-        { label: 'week', seconds: 604800 },
-        { label: 'day', seconds: 86400 },
-        { label: 'hour', seconds: 3600 },
-        { label: 'minute', seconds: 60 }
+        ["year", 31536000],
+        ["month", 2592000],
+        ["week", 604800],
+        ["day", 86400],
+        ["hour", 3600],
+        ["minute", 60],
       ];
 
-      for (const interval of intervals) {
-        const count = Math.floor(secondsDelta / interval.seconds);
+      for (const [label, amount] of intervals) {
+        const count = Math.floor(secondsDelta / amount);
 
         if (count >= 1) {
-          const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'always' });
-          return rtf.format(-count, interval.label).toUpperCase();
+          return new Intl.RelativeTimeFormat("en", {
+            numeric: "always",
+          })
+            .format(-count, label)
+            .toUpperCase();
         }
       }
 
-      return 'JUST NOW';
-    } catch (error) {
-      console.error('Interval processing failure:', error);
-      return 'RECENT';
+      return "JUST NOW";
+    } catch {
+      return "RECENT";
     }
   };
 
-  // Fixed Helper Engine: Attaches broken lines while preserving text linebreaks and paragraph separation structures.
-  const getFormattedContent = () => {
-    if (!article?.content) return [];
+  /* =======================================================
+     CONTENT
+  ======================================================= */
 
-    // 1. Normalize array data pools or pure string formats into uniform arrays of paragraphs
+  const getFormattedContent = () => {
+    if (!article?.content) {
+      return [];
+    }
+
     const paragraphs = Array.isArray(article.content)
-      ? article.content.filter(Boolean).map(item => String(item))
+      ? article.content.filter(Boolean).map((item) => String(item))
       : String(article.content).split(/\n{2,}/);
 
     return paragraphs
       .map((paragraph) => {
-        // Split text by lines, preserving structural code segments, lines, or lists
-        const lines = paragraph.split('\n');
+        const lines = paragraph.split("\n");
+
         const fixedLines = [];
 
-        lines.forEach((currentLine) => {
-          const trimmedLine = currentLine.trim();
-          const previousLine = fixedLines[fixedLines.length - 1];
+        lines.forEach((line) => {
+          const trimmed = line.trim();
 
-          // Edge Condition Check: Should this line merge back up with the previous text index?
-          const shouldAttachToPrevious =
-            previousLine &&
-            trimmedLine.length > 0 &&
-            trimmedLine.length <= 45 &&
-            !/^[•\-*0-9]/.test(trimmedLine) && // Don't strip structured point markdown headers
-            !/[.!?]"?$/.test(previousLine.trim()); // Only attach if the previous sentence was left open/detached
+          const previous = fixedLines[fixedLines.length - 1];
 
-          if (shouldAttachToPrevious) {
-            fixedLines[fixedLines.length - 1] = `${previousLine} ${trimmedLine}`;
+          const shouldAttach =
+            previous &&
+            trimmed.length > 0 &&
+            trimmed.length <= 45 &&
+            !/^[•\-*0-9]/.test(trimmed) &&
+            !/[.!?]"?$/.test(previous.trim());
+
+          if (shouldAttach) {
+            fixedLines[fixedLines.length - 1] = `${previous} ${trimmed}`;
           } else {
-            // Keep the exact original padding space or structural line break intact
-            fixedLines.push(currentLine);
+            fixedLines.push(line);
           }
         });
 
-        return fixedLines.join('\n');
+        return fixedLines.join("\n");
       })
       .filter(Boolean);
   };
 
-useEffect(() => {
-  if (!name) {
-    setLoading(false);
-    return;
-  }
+  /* =======================================================
+     LOAD ARTICLE
+  ======================================================= */
 
-  setLoading(true);
+  useEffect(() => {
+    if (!name) {
+      setLoading(false);
+      return;
+    }
 
-  articleService.fetchArticleByName(name)
-    .then((res) => {
-      setArticle(res.data);
-      setLoading(false);
-    })
-    .catch((err) => {
-      console.error('Error retrieving full article document', err);
-      setArticle(null);
-      setLoading(false);
+    let cancelled = false;
+
+    const loadArticle = async () => {
+      try {
+        setLoading(true);
+
+        setLoadError("");
+
+        const response = await articleService.fetchArticleByName(name);
+
+        if (cancelled) {
+          return;
+        }
+
+        const loaded = response.data;
+
+        setArticle(loaded);
+
+        setLiked(Boolean(loaded?.liked));
+
+        setLikesCount(Number(loaded?.likesCount) || 0);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        console.error("Unable to load article:", error);
+
+        setArticle(null);
+
+        setLoadError(error.response?.data?.message || "Unable to load report.");
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadArticle();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [name]);
+
+  /* =======================================================
+     LIKE STATUS
+  ======================================================= */
+
+  useEffect(() => {
+    if (!articleId || !isAuthenticated) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadLikeStatus = async () => {
+      try {
+        const response = await articleService.getArticleLikeStatus(articleId);
+
+        if (cancelled) {
+          return;
+        }
+
+        setLiked(Boolean(response.data?.liked));
+
+        setLikesCount(Number(response.data?.likesCount) || 0);
+      } catch (error) {
+        console.error("Unable to load like status:", error);
+      }
+    };
+
+    loadLikeStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [articleId, isAuthenticated]);
+
+  /* =======================================================
+     COMMENTS LOAD
+  ======================================================= */
+
+  useEffect(() => {
+    if (!articleId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadComments = async () => {
+      try {
+        setCommentsLoading(true);
+
+        setCommentError("");
+
+        const response = await articleService.fetchArticleComments(articleId);
+
+        if (cancelled) {
+          return;
+        }
+
+        setComments(Array.isArray(response.data) ? response.data : []);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        console.error("Unable to load comments:", error);
+
+        setCommentError(
+          error.response?.data?.message || "Unable to load comments.",
+        );
+      } finally {
+        if (!cancelled) {
+          setCommentsLoading(false);
+        }
+      }
+    };
+
+    loadComments();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [articleId]);
+
+  /* =======================================================
+     HASH
+  ======================================================= */
+
+  useEffect(() => {
+    if (article && window.location.hash === "#comments") {
+      window.setTimeout(() => {
+        document.getElementById("comments")?.scrollIntoView({
+          behavior: "smooth",
+
+          block: "start",
+        });
+      }, 150);
+    }
+  }, [article]);
+
+  /* =======================================================
+     LIKE
+  ======================================================= */
+
+  const showInteractionMessage = (message, type = "normal") => {
+    setInteractionMessage({
+      message,
+      type,
     });
-}, [name]);
+
+    window.setTimeout(() => setInteractionMessage(null), 2200);
+  };
+
+  const handleLike = async () => {
+    if (!articleId || likeLoading) {
+      return;
+    }
+
+    if (!isAuthenticated) {
+      navigate("/auth/signin");
+
+      return;
+    }
+
+    if (isOwnArticle) {
+      showInteractionMessage("You cannot like your own report.", "error");
+
+      return;
+    }
+
+    try {
+      setLikeLoading(true);
+
+      const response = liked
+        ? await articleService.unlikeArticle(articleId)
+        : await articleService.likeArticle(articleId);
+
+      const nextLiked = Boolean(response.data?.liked);
+
+      const nextCount = Number(response.data?.likesCount) || 0;
+
+      setLiked(nextLiked);
+
+      setLikesCount(nextCount);
+
+      const reward = Number(response.data?.berryReward) || 0;
+
+      showInteractionMessage(
+        reward > 0
+          ? `+${reward} Berry`
+          : nextLiked
+            ? "Report liked"
+            : "Like removed",
+        reward > 0 ? "reward" : "normal",
+      );
+    } catch (error) {
+      showInteractionMessage(
+        error.response?.data?.message || "Unable to update like.",
+        "error",
+      );
+    } finally {
+      setLikeLoading(false);
+    }
+  };
+
+  /* =======================================================
+     CREATE COMMENT
+  ======================================================= */
+
+  const handleCommentSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!isAuthenticated) {
+      navigate("/auth/signin");
+
+      return;
+    }
+
+    const body = commentBody.trim();
+
+    if (!body) {
+      setCommentError("Write a comment first.");
+
+      return;
+    }
+
+    if (body.length > 500) {
+      setCommentError("Comments are limited to 500 characters.");
+
+      return;
+    }
+
+    try {
+      setCommentSubmitting(true);
+
+      setCommentError("");
+
+      const response = await articleService.createArticleComment(
+        articleId,
+        body,
+      );
+
+      setComments((current) => [...current, response.data]);
+
+      setCommentBody("");
+    } catch (error) {
+      setCommentError(
+        error.response?.data?.message || "Unable to post comment.",
+      );
+    } finally {
+      setCommentSubmitting(false);
+    }
+  };
+
+  /* =======================================================
+     DELETE COMMENT
+  ======================================================= */
+
+  const handleDeleteComment = async (comment) => {
+    if (!comment?._id || deletingCommentId) {
+      return;
+    }
+
+    try {
+      setDeletingCommentId(comment._id);
+
+      setCommentError("");
+
+      await articleService.deleteArticleComment(articleId, comment._id);
+
+      setComments((current) =>
+        current.filter((item) => String(item._id) !== String(comment._id)),
+      );
+    } catch (error) {
+      setCommentError(
+        error.response?.data?.message || "Unable to delete comment.",
+      );
+    } finally {
+      setDeletingCommentId(null);
+    }
+  };
+
+  /* =======================================================
+     LOADING
+  ======================================================= */
 
   if (loading) {
     return (
-      <div className="flex min-h-screen w-full items-center justify-center bg-[#f8fafc] font-sans">
-        <div className="rounded-3xl border-4 border-zinc-900 bg-white px-8 py-6 shadow-[8px_8px_0px_0px_rgba(24,24,27,1)]">
-          <p className="animate-pulse text-lg font-black uppercase tracking-widest text-zinc-500">
-            Loading Article...
+      <div
+        className="
+          flex
+          min-h-screen
+          items-center
+          justify-center
+          bg-[#f8fafc]
+        "
+      >
+        <div
+          className="
+            rounded-3xl
+            border-4
+            border-zinc-900
+            bg-white
+            px-8
+            py-6
+            shadow-[8px_8px_0_#18181b]
+          "
+        >
+          <div
+            className="
+              mx-auto
+              h-10
+              w-10
+              animate-spin
+              rounded-full
+              border-4
+              border-zinc-200
+              border-t-[#3b4cca]
+            "
+          />
+
+          <p
+            className="
+              mt-4
+              text-[10px]
+              font-black
+              uppercase
+              tracking-widest
+              text-zinc-500
+            "
+          >
+            Loading Report
           </p>
         </div>
       </div>
@@ -143,72 +602,253 @@ useEffect(() => {
 
   if (!article) {
     return (
-      <div className="relative flex min-h-screen w-full flex-col bg-[#f8fafc]">
-        <div className="flex flex-1 flex-col items-center justify-center">
-          <div className="flex justify-center pb-8 pt-10">
-            <Button to="/articles" size="md" className="z-20 bg-[#3b4cca] text-white">
-              ← Back to PokeSocial Feed
-            </Button>
-          </div>
-          <NotFoundPage />
-        </div>
+      <div
+        className="
+          flex
+          min-h-screen
+          flex-col
+          items-center
+          justify-center
+          bg-[#f8fafc]
+        "
+      >
+        {loadError && (
+          <p
+            className="
+              mb-6
+              rounded-xl
+              border-2
+              border-red-500
+              bg-red-50
+              px-4
+              py-3
+              font-bold
+              text-red-700
+            "
+          >
+            {loadError}
+          </p>
+        )}
+
+        <Button to="/articles" variant="secondary" size="md">
+          ← Back to PokéSocial
+        </Button>
+
+        <NotFoundPage />
       </div>
     );
   }
 
+  const formattedContent = getFormattedContent();
+
+  /* =======================================================
+     UI
+  ======================================================= */
+
   return (
-    <div className="min-h-screen bg-[#f8fafc] font-sans selection:bg-yellow-400 selection:text-zinc-950">
-      <main className="mx-auto max-w-6xl px-4 pb-16 pt-24 sm:px-6 lg:px-8">
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-          <Button to="/articles" variant="secondary" size="sm" className="font-black tracking-tight">
-            ← Return to Social Feed
+    <div
+      className="
+        min-h-screen
+        bg-[#eef1f6]
+        font-sans
+      "
+    >
+      <main
+        className="
+          mx-auto
+          max-w-6xl
+          px-4
+          pb-16
+          pt-8
+          sm:px-6
+          sm:pt-10
+          lg:px-8
+        "
+      >
+        <div
+          className="
+            mb-8
+            flex
+            flex-wrap
+            items-center
+            justify-between
+            gap-3
+          "
+        >
+          <Button to="/articles" variant="secondary" size="sm">
+            ← Social Feed
           </Button>
 
-          <span className="rounded-full border-2 border-zinc-900 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-[0.25em] text-zinc-500 shadow-[3px_3px_0px_0px_rgba(24,24,27,1)]">
-            Rotom Article
-          </span>
+          <div
+            className="
+              flex
+              gap-2
+            "
+          >
+            <span
+              className="
+                rounded-full
+                border-2
+                border-zinc-900
+                bg-red-50
+                px-3
+                py-2
+                text-[10px]
+                font-black
+                text-red-500
+                shadow-[3px_3px_0_#18181b]
+              "
+            >
+              ♥ {likesCount}
+            </span>
+
+            <span
+              className="
+                rounded-full
+                border-2
+                border-zinc-900
+                bg-blue-50
+                px-3
+                py-2
+                text-[10px]
+                font-black
+                text-[#3b4cca]
+                shadow-[3px_3px_0_#18181b]
+              "
+            >
+              💬 {comments.length}
+            </span>
+          </div>
         </div>
 
-        <article className="clearfix">
-          <div className="mb-8 lg:float-left lg:mr-8 lg:w-[56%]">
-            <div className="overflow-hidden rounded-[2rem] border-4 border-zinc-900 bg-white shadow-[12px_12px_0px_0px_rgba(24,24,27,1)]">
-              <div className="relative aspect-video overflow-hidden border-b-4 border-zinc-900 bg-zinc-900">
+        <article
+          className="
+            clearfix
+          "
+        >
+          {/* IMAGE / TITLE */}
+
+          <div
+            className="
+              mb-8
+              lg:float-left
+              lg:mr-8
+              lg:w-[56%]
+            "
+          >
+            <div
+              className="
+                overflow-hidden
+                rounded-[2rem]
+                border-4
+                border-zinc-900
+                bg-white
+                shadow-[12px_12px_0_#18181b]
+              "
+            >
+              <div
+                className="
+                  relative
+                  aspect-video
+                  overflow-hidden
+                  border-b-4
+                  border-zinc-900
+                  bg-zinc-900
+                "
+              >
                 <img
-                  src={renderArticleImage(article)}
+                  src={imageFailed ? FALLBACK_IMAGE : articleImage}
                   alt={article.title}
-                  className="h-full w-full object-cover transition-transform duration-700 hover:scale-105"
+                  onError={() => setImageFailed(true)}
+                  className="
+                    h-full
+                    w-full
+                    object-cover
+                  "
                 />
 
-                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-
-                <div className="absolute left-4 top-4 flex items-center gap-2 rounded-xl border-2 border-zinc-900 bg-black/80 px-3 py-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
-                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-600" />
-                  </span>
-                </div>
-
-                <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.08)_50%)] bg-[length:100%_4px]" />
+                <div
+                  className="
+                    pointer-events-none
+                    absolute
+                    inset-0
+                    bg-gradient-to-t
+                    from-black/25
+                    via-transparent
+                    to-transparent
+                  "
+                />
               </div>
 
-              <div className="bg-white p-6 sm:p-8">
-                <div className="mb-5 flex flex-wrap items-center gap-3">
-                  <span className={`rounded-lg border-2 border-zinc-900 ${article.color || 'bg-zinc-500'} px-3 py-1 text-[10px] font-black uppercase text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]`}>
-                    {article.date || 'RECENT'}
-                  </span>
-
-                  <span className="rounded-lg border-2 border-zinc-200 bg-zinc-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-zinc-400">
-                    LOG #{String(article.id || 'N/A').toUpperCase()}
+              <div
+                className="
+                  p-6
+                  sm:p-8
+                "
+              >
+                <div
+                  className="
+                    mb-5
+                    flex
+                    flex-wrap
+                    gap-3
+                  "
+                >
+                  <span
+                    className={`
+                      rounded-lg
+                      border-2
+                      border-zinc-900
+                      ${article.color || "bg-zinc-500"}
+                      px-3
+                      py-1
+                      text-[10px]
+                      font-black
+                      uppercase
+                      text-white
+                    `}
+                  >
+                    {article.date || "RECENT"}
                   </span>
                 </div>
 
-                <p className="text-4xl font-black uppercase italic leading-[0.9] tracking-tighter text-zinc-900 sm:text-5xl lg:text-6xl">
+                <h1
+                  className="
+                    text-4xl
+                    font-black
+                    uppercase
+                    italic
+                    leading-[0.9]
+                    tracking-tighter
+                    text-zinc-900
+                    sm:text-5xl
+                    lg:text-6xl
+                  "
+                >
                   {article.title}
-                </p>
+                </h1>
 
                 {article.desc && (
-                  <div className="mt-6 rounded-2xl border-4 border-zinc-900 bg-zinc-50 p-5 shadow-[5px_5px_0px_0px_rgba(24,24,27,1)]">
-                    <p className="text-base font-bold italic leading-relaxed text-zinc-700">
+                  <div
+                    className="
+                      mt-6
+                      rounded-2xl
+                      border-4
+                      border-zinc-900
+                      bg-zinc-50
+                      p-5
+                      shadow-[5px_5px_0_#18181b]
+                    "
+                  >
+                    <p
+                      className="
+                        text-base
+                        font-bold
+                        italic
+                        leading-relaxed
+                        text-zinc-700
+                      "
+                    >
                       “{article.desc}”
                     </p>
                   </div>
@@ -217,73 +857,667 @@ useEffect(() => {
             </div>
           </div>
 
-          <div className="space-y-6">
-            <div className="rounded-[1.8rem] border-4 border-zinc-900 bg-[#ffcb05] p-5 shadow-[8px_8px_0px_0px_rgba(24,24,27,1)]">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex min-w-0 items-center gap-4">
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border-2 border-zinc-900 bg-white text-xl font-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
-                    {article.author ? article.author.charAt(0).toUpperCase() : '?'}
+          {/* RIGHT */}
+
+          <div
+            className="
+              space-y-6
+            "
+          >
+            <div
+              className="
+                rounded-[1.8rem]
+                border-4
+                border-zinc-900
+                bg-[#ffcb05]
+                p-5
+                shadow-[8px_8px_0_#18181b]
+              "
+            >
+              <div
+                className="
+                  flex
+                  items-center
+                  justify-between
+                  gap-4
+                "
+              >
+                <div
+                  className="
+                    flex
+                    min-w-0
+                    items-center
+                    gap-4
+                  "
+                >
+                  <div
+                    className="
+                      flex
+                      h-14
+                      w-14
+                      shrink-0
+                      items-center
+                      justify-center
+                      rounded-2xl
+                      border-2
+                      border-zinc-900
+                      bg-white
+                      text-xl
+                      font-black
+                      shadow-[3px_3px_0_#000]
+                    "
+                  >
+                    {article.author
+                      ? article.author.charAt(0).toUpperCase()
+                      : "?"}
                   </div>
 
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-800/70">
+                  <div
+                    className="
+                      min-w-0
+                    "
+                  >
+                    <p
+                      className="
+                        text-[9px]
+                        font-black
+                        uppercase
+                        tracking-widest
+                        text-zinc-700
+                      "
+                    >
                       Published By
                     </p>
-                    <p className="truncate text-xl font-black uppercase italic tracking-tighter text-zinc-900">
-                      {article.author || 'Unknown Trainer'}
+
+                    <p
+                      className="
+                        truncate
+                        text-xl
+                        font-black
+                        uppercase
+                        italic
+                        text-zinc-950
+                      "
+                    >
+                      {article.author || "Unknown Trainer"}
                     </p>
                   </div>
                 </div>
 
-                <p className="shrink-0 rounded-lg border border-zinc-950 bg-zinc-950 px-2 py-1 text-[10px] font-black uppercase tracking-tight text-yellow-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                <span
+                  className="
+                    shrink-0
+                    rounded-lg
+                    bg-zinc-950
+                    px-2
+                    py-1
+                    text-[9px]
+                    font-black
+                    text-yellow-400
+                  "
+                >
                   {getRelativeTime(article.createdAt)}
-                </p>
+                </span>
               </div>
+
+              <div
+                className="
+                  mt-5
+                  flex
+                  items-center
+                  justify-between
+                  gap-3
+                  border-t-2
+                  border-zinc-900/20
+                  pt-4
+                "
+              >
+                <div>
+                  <p
+                    className="
+                      text-[9px]
+                      font-black
+                      uppercase
+                      text-zinc-700
+                    "
+                  >
+                    Reactions
+                  </p>
+
+                  <p
+                    className="
+                      mt-1
+                      font-black
+                      text-zinc-950
+                    "
+                  >
+                    {likesCount} {likesCount === 1 ? "Like" : "Likes"}
+                  </p>
+                </div>
+
+                <Button
+                  type="button"
+                  onClick={handleLike}
+                  disabled={likeLoading || isOwnArticle}
+                  variant="secondary"
+                  size="sm"
+                  className={
+                    liked
+                      ? "!bg-red-500 !text-white"
+                      : "!bg-white !text-red-500"
+                  }
+                >
+                  {likeLoading
+                    ? "..."
+                    : isOwnArticle
+                      ? "Your Report"
+                      : liked
+                        ? "♥ Liked"
+                        : "♡ Like"}
+                </Button>
+              </div>
+
+              {interactionMessage && (
+                <div
+                  className="
+                    mt-3
+                    rounded-lg
+                    border-2
+                    border-zinc-900
+                    bg-white
+                    px-3
+                    py-2
+                    text-center
+                    text-[9px]
+                    font-black
+                    uppercase
+                  "
+                >
+                  {interactionMessage.message}
+                </div>
+              )}
             </div>
 
-            <div className="rounded-[1.8rem] border-4 border-zinc-900 bg-white p-6 shadow-[8px_8px_0px_0px_rgba(24,24,27,1)] sm:p-8">
-              <div className="mb-6 flex items-center gap-3 border-b-4 border-zinc-100 pb-4">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl border-2 border-zinc-900 bg-[#3b4cca] text-lg shadow-[3px_3px_0px_0px_rgba(24,24,27,1)]">
-                  📄
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-400">
-                    Document Body
-                  </p>
-                  <p className="text-xl font-black uppercase italic tracking-tighter text-zinc-900">
-                    Full Report
-                  </p>
-                </div>
+            <div
+              className="
+                rounded-[1.8rem]
+                border-4
+                border-zinc-900
+                bg-white
+                p-6
+                shadow-[8px_8px_0_#18181b]
+                sm:p-8
+              "
+            >
+              <div
+                className="
+                  mb-6
+                  border-b-4
+                  border-zinc-100
+                  pb-4
+                "
+              >
+                <p
+                  className="
+                    text-[9px]
+                    font-black
+                    uppercase
+                    tracking-widest
+                    text-[#3b4cca]
+                  "
+                >
+                  Full Report
+                </p>
               </div>
 
-              <div className="max-w-none">
-                {getFormattedContent().length > 0 ? (
-                  getFormattedContent().map((paragraph, index) => (
-                    <p
-                      key={index}
-                      className="mb-7 whitespace-pre-line text-left text-lg leading-8 text-zinc-800 last:mb-0 sm:text-md sm:leading-9"
-                    >
-                      {paragraph}
-                    </p>
-                  ))
-                ) : (
-                  <p className="py-6 text-center text-sm italic text-zinc-400">
-                    No matching log body records found in system partition.
+              {formattedContent.length > 0 ? (
+                formattedContent.map((paragraph, index) => (
+                  <p
+                    key={index}
+                    className="
+                        mb-7
+                        whitespace-pre-line
+                        text-base
+                        font-medium
+                        leading-8
+                        text-zinc-800
+                        last:mb-0
+                        sm:text-lg
+                        sm:leading-9
+                      "
+                  >
+                    {paragraph}
                   </p>
-                )}
-              </div>
+                ))
+              ) : (
+                <p
+                  className="
+                    text-sm
+                    italic
+                    text-zinc-400
+                  "
+                >
+                  No report body.
+                </p>
+              )}
             </div>
           </div>
         </article>
 
-        <div className="clear-both pt-12">
-          <Button
-            to="/articles"
-            variant="secondary"
-            size="md"
-            className="rounded-xl border-4 border-zinc-900 font-black uppercase tracking-wide shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+        {/* =================================================
+            COMMENTS
+        ================================================== */}
+
+        <section
+          id="comments"
+          className="
+            clear-both
+            scroll-mt-28
+            pt-10
+          "
+        >
+          <div
+            className="
+              overflow-hidden
+              rounded-[2rem]
+              border-4
+              border-zinc-950
+              bg-white
+              shadow-[8px_8px_0_#18181b]
+            "
           >
-            Close Report Terminal
+            <div
+              className="
+                flex
+                items-center
+                justify-between
+                gap-4
+                border-b-[3px]
+                border-zinc-950
+                bg-[#3b4cca]
+                px-5
+                py-4
+                text-white
+              "
+            >
+              <div>
+                <p
+                  className="
+                    text-[8px]
+                    font-black
+                    uppercase
+                    tracking-[0.16em]
+                    text-yellow-300
+                  "
+                >
+                  Discussion
+                </p>
+
+                <h2
+                  className="
+                    text-xl
+                    font-black
+                    uppercase
+                    italic
+                  "
+                >
+                  Trainer Comments
+                </h2>
+              </div>
+
+              <span
+                className="
+                  rounded-full
+                  border-2
+                  border-white/30
+                  bg-black/20
+                  px-3
+                  py-1.5
+                  text-[9px]
+                  font-black
+                "
+              >
+                💬 {comments.length}
+              </span>
+            </div>
+
+            <div
+              className="
+                p-4
+                sm:p-6
+              "
+            >
+              {isAuthenticated ? (
+                <form
+                  onSubmit={handleCommentSubmit}
+                  className="
+                    rounded-2xl
+                    border-[3px]
+                    border-zinc-950
+                    bg-zinc-50
+                    p-4
+                    shadow-[4px_4px_0_#18181b]
+                  "
+                >
+                  <div
+                    className="
+                      flex
+                      items-center
+                      justify-between
+                      gap-4
+                    "
+                  >
+                    <label
+                      htmlFor="article-comment"
+                      className="
+                        text-[10px]
+                        font-black
+                        uppercase
+                        tracking-widest
+                        text-zinc-600
+                      "
+                    >
+                      Add Comment
+                    </label>
+
+                    <span
+                      className="
+                        text-[9px]
+                        font-bold
+                        text-zinc-400
+                      "
+                    >
+                      {commentBody.length}
+                      /500
+                    </span>
+                  </div>
+
+                  <textarea
+                    id="article-comment"
+                    value={commentBody}
+                    maxLength={500}
+                    rows={4}
+                    onChange={(event) => setCommentBody(event.target.value)}
+                    placeholder="Join the discussion..."
+                    className="
+                      mt-3
+                      w-full
+                      resize-y
+                      rounded-xl
+                      border-2
+                      border-zinc-300
+                      bg-white
+                      p-3
+                      text-sm
+                      font-medium
+                      leading-6
+                      text-zinc-900
+                      outline-none
+                      placeholder:text-zinc-400
+                      focus:border-[#3b4cca]
+                      focus:ring-4
+                      focus:ring-[#3b4cca]/10
+                    "
+                  />
+
+                  <div
+                    className="
+                      mt-3
+                      flex
+                      justify-end
+                    "
+                  >
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      size="sm"
+                      disabled={commentSubmitting || !commentBody.trim()}
+                    >
+                      {commentSubmitting ? "Posting..." : "Post Comment"}
+                    </Button>
+                  </div>
+                </form>
+              ) : (
+                <div
+                  className="
+                    rounded-xl
+                    border-2
+                    border-dashed
+                    border-zinc-300
+                    bg-zinc-50
+                    px-4
+                    py-4
+                    text-center
+                    text-sm
+                    font-semibold
+                    text-zinc-500
+                  "
+                >
+                  Sign in from the navbar to join the discussion.
+                </div>
+              )}
+
+              {commentError && (
+                <div
+                  className="
+                    mt-4
+                    rounded-xl
+                    border-2
+                    border-red-300
+                    bg-red-50
+                    px-4
+                    py-3
+                    text-sm
+                    font-bold
+                    text-red-700
+                  "
+                >
+                  {commentError}
+                </div>
+              )}
+
+              <div
+                className="
+                  mt-6
+                  space-y-3
+                "
+              >
+                {commentsLoading ? (
+                  <div
+                    className="
+                      py-8
+                      text-center
+                      text-sm
+                      font-bold
+                      text-zinc-400
+                    "
+                  >
+                    Loading comments...
+                  </div>
+                ) : comments.length > 0 ? (
+                  comments.map((comment) => {
+                    const commentUserId = getId(comment.user);
+
+                    const canDelete =
+                      Boolean(
+                        currentUserId &&
+                        commentUserId &&
+                        String(currentUserId) === String(commentUserId),
+                      ) || ["admin", "editor"].includes(currentRole);
+
+                    return (
+                      <article
+                        key={comment._id}
+                        className="
+                            rounded-2xl
+                            border-2
+                            border-zinc-200
+                            bg-white
+                            p-4
+                            transition
+                            hover:border-zinc-300
+                          "
+                      >
+                        <div
+                          className="
+                              flex
+                              items-start
+                              gap-3
+                            "
+                        >
+                          <div
+                            className="
+                                flex
+                                h-10
+                                w-10
+                                shrink-0
+                                items-center
+                                justify-center
+                                rounded-xl
+                                border-2
+                                border-zinc-950
+                                bg-yellow-300
+                                text-sm
+                                font-black
+                                uppercase
+                                shadow-[2px_2px_0_#18181b]
+                              "
+                          >
+                            {comment.author?.charAt(0)?.toUpperCase() || "?"}
+                          </div>
+
+                          <div
+                            className="
+                                min-w-0
+                                flex-1
+                              "
+                          >
+                            <div
+                              className="
+                                  flex
+                                  flex-wrap
+                                  items-center
+                                  justify-between
+                                  gap-2
+                                "
+                            >
+                              <div>
+                                <p
+                                  className="
+                                      text-sm
+                                      font-black
+                                      text-zinc-950
+                                    "
+                                >
+                                  {comment.author || "Trainer"}
+                                </p>
+
+                                <p
+                                  className="
+                                      mt-0.5
+                                      text-[8px]
+                                      font-bold
+                                      uppercase
+                                      tracking-wider
+                                      text-zinc-400
+                                    "
+                                >
+                                  {getRelativeTime(comment.createdAt)}
+                                </p>
+                              </div>
+
+                              {canDelete && (
+                                <button
+                                  type="button"
+                                  disabled={deletingCommentId === comment._id}
+                                  onClick={() => handleDeleteComment(comment)}
+                                  className="
+                                      rounded-lg
+                                      border-2
+                                      border-transparent
+                                      px-2
+                                      py-1
+                                      text-[8px]
+                                      font-black
+                                      uppercase
+                                      text-red-500
+                                      transition
+                                      hover:border-red-200
+                                      hover:bg-red-50
+                                      disabled:opacity-40
+                                    "
+                                >
+                                  {deletingCommentId === comment._id
+                                    ? "..."
+                                    : "Delete"}
+                                </button>
+                              )}
+                            </div>
+
+                            <p
+                              className="
+                                  mt-3
+                                  whitespace-pre-wrap
+                                  break-words
+                                  text-sm
+                                  font-medium
+                                  leading-6
+                                  text-zinc-700
+                                "
+                            >
+                              {comment.body}
+                            </p>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })
+                ) : (
+                  <div
+                    className="
+                      rounded-2xl
+                      border-2
+                      border-dashed
+                      border-zinc-200
+                      bg-zinc-50
+                      py-10
+                      text-center
+                    "
+                  >
+                    <p
+                      className="
+                        text-sm
+                        font-black
+                        uppercase
+                        text-zinc-500
+                      "
+                    >
+                      No comments yet
+                    </p>
+
+                    <p
+                      className="
+                        mt-1
+                        text-xs
+                        text-zinc-400
+                      "
+                    >
+                      Start the discussion.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div
+          className="
+            pt-10
+          "
+        >
+          <Button to="/articles" variant="secondary" size="md">
+            ← Return to PokéSocial
           </Button>
         </div>
       </main>

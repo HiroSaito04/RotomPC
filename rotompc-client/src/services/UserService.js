@@ -1,38 +1,81 @@
-// rotompc-client\src\services\UserService.js
-import axios from 'axios';
-import constants from '@/constants';
+// rotompc-client/src/services/UserService.js
 
-const API = axios.create({ 
-  baseURL: `${constants.HOST}/users`, 
+import axios from "axios";
+import apiConfig from "@/config/api";
+
+const API = axios.create({
+  baseURL: `${apiConfig.HOST}/users`,
 });
+/* =========================================================
+   AUTHORIZATION
+========================================================= */
 
-// Axios Request Interceptor: Automatically inspects local storage and attaches headers
 API.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
+
     if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
+      config.headers.Authorization = `Bearer ${token}`;
     }
+
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+
+  (error) => Promise.reject(error),
 );
 
-export const fetchUsers = () => API.get('/');
+/* =========================================================
+   AUTH
+========================================================= */
 
-export const createUser = (user) => API.post('/', user);
+export const loginUser = (credentials) => API.post("/login", credentials);
 
-export const updateUser = (id, user) => API.put(`/${id}`, user); 
-
-export const deleteUser = (id) => {
-  const adminId = localStorage.getItem('id'); // Pull local session ID to satisfy admin identity header verification
-  return API.delete(`/${id}`, {
-    headers: {
-      'x-user-id': adminId
-    }
+export const googleAuth = (credential) =>
+  API.post("/auth/google", {
+    credential,
   });
-}; 
 
-export const loginUser = (credentials) => API.post('/login', credentials);
+export const appleAuth = (payload) => API.post("/auth/apple", payload);
+
+/* =========================================================
+   USERS
+========================================================= */
+
+export const fetchUsers = () => API.get("/");
+
+export const createUser = (user) => API.post("/", user);
+
+export const updateUser = (id, user) => API.put(`/${id}`, user);
+
+export const deleteUser = (id) => API.delete(`/${id}`);
+
+/* =========================================================
+   CURRENT TRAINER PROFILE
+========================================================= */
+
+export const fetchMyProfile = () => API.get("/me");
+
+export const updateTrainerProfile = (profile) =>
+  API.patch("/me/profile", profile);
+
+export const completeTrainerProfile = (profile) =>
+  API.patch("/me/complete-profile", profile);
+
+/* =========================================================
+   PUBLIC TRAINER PROFILE
+========================================================= */
+
+export const fetchPublicProfile = (username) =>
+  API.get(`/profile/${encodeURIComponent(username)}`);
+
+/* =========================================================
+   POKÉSOCIAL
+========================================================= */
+
+export const followTrainer = (userId) => API.post(`/${userId}/follow`);
+
+export const unfollowTrainer = (userId) => API.delete(`/${userId}/follow`);
+
+export const fetchFollowers = (userId) => API.get(`/${userId}/followers`);
+
+export const fetchFollowing = (userId) => API.get(`/${userId}/following`);

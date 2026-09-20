@@ -1,329 +1,1756 @@
-import { useState, useEffect } from 'react';
-import Button from '@/components/Button';
+// rotompc-client/src/pages/LandingPages/HomePage.jsx
+
+import { useEffect, useState } from "react";
+
+import Button from "@/components/Button";
+
+import { KANTO_MAX_ID, MAX_POKEMON_ID } from "@/constants/pokemon";
+
+import {
+  fetchPokemonBatch,
+  fetchRandomKantoPokemon,
+} from "@/services/PokemonService";
+
+import {
+  formatPokemonName,
+  getPokemonImages,
+  getPokemonTypeStyles,
+  normalizeCarouselPokemon,
+} from "@/utils/pokemonHelpers";
+
+/* =========================================================
+   HOME PAGE
+========================================================= */
 
 const HomePage = () => {
-  // Mainframe Scanner (Randomizer) States
+  /* =======================================================
+     SCANNER STATE
+  ======================================================= */
+
   const [scannerMon, setScannerMon] = useState(null);
-  
-  // Chronological Carousel States
+
+  const [scannerLoading, setScannerLoading] = useState(true);
+
+  const [scannerTilted, setScannerTilted] = useState(false);
+
+  /* =======================================================
+     CAROUSEL STATE
+  ======================================================= */
+
   const [carouselPokemon, setCarouselPokemon] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(1); // Start at dex ID 1 (Bulbasaur)
+
+  const [currentIndex, setCurrentIndex] = useState(1);
+
   const [loadingCarousel, setLoadingCarousel] = useState(true);
 
-  // Styling helper for types mapping
-  const getTypeStyles = (type) => {
-    const styles = {
-      fire: { bg: 'bg-orange-50', grad: 'from-orange-400 to-red-500' },
-      water: { bg: 'bg-blue-50', grad: 'from-blue-400 to-blue-600' },
-      grass: { bg: 'bg-green-50', grad: 'from-green-400 to-green-600' },
-      electric: { bg: 'bg-yellow-50', grad: 'from-yellow-400 to-amber-500' },
-      bug: { bg: 'bg-lime-50', grad: 'from-lime-400 to-lime-600' },
-      normal: { bg: 'bg-zinc-100', grad: 'from-zinc-300 to-zinc-400' },
-      poison: { bg: 'bg-purple-50', grad: 'from-purple-400 to-purple-600' },
-      ground: { bg: 'bg-yellow-100/50', grad: 'from-amber-600 to-amber-800' },
-      fairy: { bg: 'bg-pink-50', grad: 'from-pink-300 to-pink-500' },
-      psychic: { bg: 'bg-rose-50', grad: 'from-rose-400 to-pink-600' },
-      fighting: { bg: 'bg-red-50', grad: 'from-red-500 to-zinc-700' },
-      rock: { bg: 'bg-stone-100', grad: 'from-stone-400 to-stone-600' },
-      ghost: { bg: 'bg-indigo-50', grad: 'from-indigo-400 to-purple-800' },
-      ice: { bg: 'bg-cyan-50', grad: 'from-cyan-300 to-blue-400' },
-      dragon: { bg: 'bg-violet-50', grad: 'from-violet-500 to-indigo-700' },
-    };
-    return styles[type?.toLowerCase()] || { bg: 'bg-zinc-50', grad: 'from-zinc-400 to-zinc-600' };
-  };
+  /* =======================================================
+     RANDOM SCANNER POKEMON
+  ======================================================= */
 
-  // --- Core Lifecycle 1: High-Tech Random Scanner Subsystem ---
   useEffect(() => {
-    const fetchRandomScannerMon = async () => {
+    let active = true;
+
+    const loadScannerPokemon = async () => {
       try {
-        const randomId = Math.floor(Math.random() * 151) + 1;
-        const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${randomId}`);
-        const data = await res.json();
-        
+        const pokemon = await fetchRandomKantoPokemon();
+
+        if (!active) {
+          return;
+        }
+
+        const images = getPokemonImages(pokemon);
+
+        /*
+         * Scanner priority:
+         *
+         * 1. Black / White animated GIF
+         * 2. Showdown animated GIF
+         * 3. Generic animated resolver
+         * 4. GBA sprite
+         * 5. Default sprite
+         * 6. Raw fallback
+         * 7. Official artwork
+         *
+         * We intentionally DO NOT use images.primary
+         * because primary is GBA/static-first.
+         */
+        const spriteSources = [
+          images.blackWhiteAnimated,
+          images.showdownAnimated,
+          images.animatedPrimary,
+          images.gba,
+          images.standard,
+          images.original,
+          images.officialArtwork,
+        ].filter(
+          (source, index, array) => source && array.indexOf(source) === index,
+        );
+
+        const primaryType = pokemon.types?.[0]?.type?.name || "normal";
+
+        const design = getPokemonTypeStyles(primaryType);
+
         setScannerMon({
-          name: data.name,
-          image: data.sprites.versions?.['generation-v']?.['black-white']?.animated?.front_default || data.sprites.front_default
+          id: pokemon.id,
+
+          name: pokemon.name,
+
+          displayName: formatPokemonName(pokemon.name),
+
+          type: primaryType,
+
+          grad: design.grad,
+
+          spriteSources,
+
+          spriteIndex: 0,
         });
-      } catch (err) {
-        console.error("Scanner stream drop:", err);
+      } catch (error) {
+        console.error("Scanner stream drop:", error);
+      } finally {
+        if (active) {
+          setScannerLoading(false);
+        }
       }
     };
 
-    fetchRandomScannerMon();
-    const scannerInterval = setInterval(fetchRandomScannerMon, 5000);
+    /*
+     * Initial scan.
+     */
+    loadScannerPokemon();
 
-    return () => clearInterval(scannerInterval);
+    /*
+     * Change Pokémon every five seconds.
+     */
+    const scannerInterval = window.setInterval(loadScannerPokemon, 5000);
+
+    return () => {
+      active = false;
+
+      window.clearInterval(scannerInterval);
+    };
   }, []);
 
-  // --- Core Lifecycle 2: Chronological Carousel Paginated Streams (OPTIMIZED) ---
+  /* =======================================================
+     SCANNER SPRITE FALLBACK
+  ======================================================= */
+
+  const handleScannerSpriteError = () => {
+    setScannerMon((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const nextIndex = current.spriteIndex + 1;
+
+      if (nextIndex >= current.spriteSources.length) {
+        return current;
+      }
+
+      return {
+        ...current,
+        spriteIndex: nextIndex,
+      };
+    });
+  };
+
+  /* =======================================================
+     KANTO CAROUSEL
+  ======================================================= */
+
   useEffect(() => {
-    const fetchCarouselBatch = async () => {
+    let active = true;
+
+    const loadCarousel = async () => {
       try {
         setLoadingCarousel(true);
-        const idBatch = [currentIndex, currentIndex + 1, currentIndex + 2].filter(id => id <= 151);
 
-        const dataPromises = idBatch.map(async (id) => {
-          const [detailRes, speciesRes] = await Promise.all([
-            fetch(`https://pokeapi.co/api/v2/pokemon/${id}`),
-            fetch(`https://pokeapi.co/api/v2/pokemon-species/${id}`)
-          ]);
+        const ids = [currentIndex, currentIndex + 1, currentIndex + 2].filter(
+          (id) => id <= KANTO_MAX_ID,
+        );
 
-          const detailData = await detailRes.json();
-          const speciesData = await speciesRes.json();
+        const results = await fetchPokemonBatch(ids);
 
-          const englishLog = speciesData.flavor_text_entries.find(
-            (entry) => entry.language.name === 'en'
-          );
-          const cleanDesc = englishLog 
-            ? englishLog.flavor_text.replace(/[\n\f]/g, ' ') 
-            : 'Core diagnostic vectors mapped securely inside system constraints.';
+        if (!active) {
+          return;
+        }
 
-          const primaryType = detailData.types[0]?.type?.name || 'normal';
-          const typeDesign = getTypeStyles(primaryType);
+        const normalized = results
+          .map(({ pokemon, species }) =>
+            normalizeCarouselPokemon(pokemon, species),
+          )
+          .filter(Boolean);
 
-          return {
-            name: detailData.name,
-            id: detailData.id,
-            no: String(detailData.id).padStart(3, '0'),
-            type: primaryType,
-            bg: typeDesign.bg,
-            grad: typeDesign.grad,
-            image: detailData.sprites.versions?.['generation-v']?.['black-white']?.animated?.front_default || detailData.sprites.front_default,
-            fallbackImage: detailData.sprites.front_default,
-            desc: cleanDesc
-          };
-        });
+        setCarouselPokemon(normalized);
+      } catch (error) {
+        console.error("Carousel vector loading failure:", error);
 
-        const completedBatch = await Promise.all(dataPromises);
-        setCarouselPokemon(completedBatch);
-      } catch (err) {
-        console.error("Carousel vector loading failure:", err);
+        if (active) {
+          setCarouselPokemon([]);
+        }
       } finally {
-        setLoadingCarousel(false);
+        if (active) {
+          setLoadingCarousel(false);
+        }
       }
     };
 
-    fetchCarouselBatch();
+    loadCarousel();
+
+    return () => {
+      active = false;
+    };
   }, [currentIndex]);
 
+  /* =======================================================
+     CAROUSEL CONTROLS
+  ======================================================= */
+
   const handlePrev = () => {
-    if (currentIndex > 1) {
-      setCurrentIndex(prev => Math.max(1, prev - 3));
-    }
+    setCurrentIndex((previous) => Math.max(1, previous - 3));
   };
 
   const handleNext = () => {
-    if (currentIndex + 3 <= 151) {
-      setCurrentIndex(prev => prev + 3);
-    }
+    setCurrentIndex((previous) => Math.min(KANTO_MAX_ID - 2, previous + 3));
   };
 
+  /* =======================================================
+     SYSTEM STATS
+  ======================================================= */
+
+  const stats = [
+    {
+      label: "National Dex",
+
+      value: String(MAX_POKEMON_ID),
+
+      color: "bg-indigo-600",
+
+      icon: "🌐",
+    },
+
+    {
+      label: "Kanto Entries",
+
+      value: String(KANTO_MAX_ID),
+
+      color: "bg-red-500",
+
+      icon: "🗺️",
+    },
+
+    {
+      label: "Regions",
+
+      value: "09",
+
+      color: "bg-emerald-500",
+
+      icon: "🏔️",
+    },
+
+    {
+      label: "Types",
+
+      value: "18",
+
+      color: "bg-amber-500",
+
+      icon: "🧬",
+    },
+  ];
+
+  /* =======================================================
+     CURRENT SCANNER SPRITE
+  ======================================================= */
+
+  const scannerImage =
+    scannerMon?.spriteSources?.[scannerMon.spriteIndex] || null;
+
+  /*
+   * If the URL is a GIF, the Pokémon has
+   * real frame animation.
+   *
+   * Static fallback sprites get subtle CSS
+   * movement so they do not look frozen.
+   */
+  const scannerImageIsAnimated = Boolean(
+    scannerImage?.toLowerCase().includes(".gif"),
+  );
+
+  /* =======================================================
+     PAGE
+  ======================================================= */
+
   return (
-    <div className="flex w-full flex-col gap-6 md:gap-10 bg-[#e5e7eb] pb-16 md:pb-20 font-sans selection:bg-[#ff1c1c] selection:text-white">
-      
-      {/* Hero Section: The Master Unit */}
-      <section className="relative overflow-hidden border-b-[8px] md:border-b-[12px] border-zinc-900 bg-[#ff1c1c] px-4 py-10 md:py-16 text-white sm:px-6 lg:px-8">
-        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:20px_20px]"></div>
-        
-        <div className="relative z-10 mx-auto max-w-7xl grid gap-8 lg:grid-cols-2 lg:items-center">
-          <div className="space-y-4 md:space-y-6 text-center lg:text-left flex flex-col items-center lg:items-start">
-            <div className="inline-block rounded-md bg-zinc-900 px-3 py-1 shadow-lg">
-              <p className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.4em] text-yellow-400">
-                System Version 3.0.5 // PALDEA
-              </p>
+    <div
+      className="
+        min-h-screen
+        bg-[#e5e7eb]
+        pb-20
+        font-sans
+        text-zinc-900
+        selection:bg-[#ff1c1c]
+        selection:text-white
+      "
+    >
+      {/* ===================================================
+          HERO
+      ==================================================== */}
+
+      <section
+        className="
+          relative
+          overflow-hidden
+          border-b-[10px]
+          border-zinc-950
+          bg-[#ff1c1c]
+          text-white
+        "
+      >
+        {/* BACKGROUND GRID */}
+
+        <div
+          className="
+            pointer-events-none
+            absolute
+            inset-0
+            opacity-10
+            bg-[radial-gradient(#fff_1px,transparent_1px)]
+            [background-size:20px_20px]
+          "
+        />
+
+        {/* DECORATIVE RING */}
+
+        <div
+          className="
+            pointer-events-none
+            absolute
+            -right-32
+            -top-32
+            h-[430px]
+            w-[430px]
+            rounded-full
+            border-[42px]
+            border-white/5
+          "
+        />
+
+        <div
+          className="
+            relative
+            z-10
+            mx-auto
+            grid
+            max-w-7xl
+            gap-12
+            px-4
+            py-12
+            sm:px-6
+            sm:py-16
+            lg:grid-cols-2
+            lg:items-center
+            lg:px-8
+            lg:py-20
+          "
+        >
+          {/* ===============================================
+              HERO COPY
+          ================================================ */}
+
+          <div
+            className="
+              flex
+              flex-col
+              items-center
+              text-center
+              lg:items-start
+              lg:text-left
+            "
+          >
+            <div
+              className="
+                inline-flex
+                items-center
+                gap-2
+                rounded-lg
+                border-2
+                border-zinc-950
+                bg-zinc-900
+                px-3
+                py-2
+                shadow-[3px_3px_0_#18181b]
+              "
+            >
+              <span
+                className="
+                  h-2.5
+                  w-2.5
+                  animate-pulse
+                  rounded-full
+                  bg-green-400
+                  shadow-[0_0_10px_#4ade80]
+                "
+              />
+
+              <span
+                className="
+                  font-mono
+                  text-[9px]
+                  font-black
+                  uppercase
+                  tracking-[0.18em]
+                  text-yellow-400
+                  sm:text-[10px]
+                "
+              >
+                Rotom Mainframe Online
+              </span>
             </div>
-            
-            <h1 className="text-4xl font-black leading-[1.0] sm:text-7xl drop-shadow-[3px_3px_0px_rgba(0,0,0,0.3)] italic uppercase tracking-tighter">
-              Gotta Catch <br />
-              <span className="text-zinc-900 underline decoration-yellow-400 underline-offset-4 md:underline-offset-8">'Em All!</span>
+
+            <h1
+              className="
+                mt-6
+                text-[clamp(3.1rem,12vw,6rem)]
+                font-black
+                uppercase
+                italic
+                leading-[0.86]
+                tracking-[-0.055em]
+                drop-shadow-[4px_4px_0_rgba(0,0,0,0.25)]
+              "
+            >
+              Gotta Catch
+              <span
+                className="
+                  mt-2
+                  block
+                  text-zinc-950
+                  underline
+                  decoration-yellow-400
+                  decoration-[6px]
+                  underline-offset-[8px]
+                "
+              >
+                'Em All!
+              </span>
             </h1>
-            
-            <p className="max-w-md text-sm sm:text-base md:text-xl font-bold leading-relaxed text-red-100 border-t-4 lg:border-t-0 lg:border-l-4 border-yellow-400 pt-3 lg:pt-0 lg:pl-4 whitespace-pre-line">
-              {`Welcome to the most advanced Pokémon database ever created. \nPowered by Rotom-Dex with real-time map mapping, data scanning, and field analysis.`}
+
+            <p
+              className="
+                mx-auto
+                mt-8
+                max-w-xl
+                border-t-4
+                border-yellow-400
+                pt-5
+                text-sm
+                font-semibold
+                leading-7
+                text-red-50
+                sm:text-base
+                lg:mx-0
+                lg:border-l-4
+                lg:border-t-0
+                lg:pl-5
+                lg:pt-0
+              "
+            >
+              Welcome to the RotomPC Pokémon database. Scan live Pokédex
+              records, browse regional entries, and access field data across the
+              Pokémon world.
             </p>
-            
-            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 pt-2 w-full sm:w-auto">
-              <Button to="/about" variant="primary" size="md" className="w-full sm:w-auto text-center justify-center">
-                SEE TRAINER ID
+
+            <div
+              className="
+                mt-8
+                flex
+                w-full
+                flex-col
+                gap-3
+                sm:w-auto
+                sm:flex-row
+              "
+            >
+              <Button
+                to="/about"
+                variant="primary"
+                size="md"
+                className="w-full sm:w-auto"
+              >
+                See Trainer ID
               </Button>
-              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 w-full sm:w-auto justify-center">
-                <div className="h-2 w-2 rounded-full bg-green-400 animate-pulse"></div>
-                <span className="text-[10px] font-black uppercase tracking-widest">Network Online</span>
-              </div>
+
+              <Button
+                to="/pokedex"
+                variant="secondary"
+                size="md"
+                className="
+    w-full
+    sm:w-auto
+
+    !border-zinc-950
+    !bg-white
+    !text-zinc-950
+
+    hover:!bg-zinc-100
+    hover:!text-zinc-950
+  "
+              >
+                Open RotomDex
+              </Button>
+            </div>
+
+            <div
+              className="
+                mt-6
+                inline-flex
+                items-center
+                gap-2
+                rounded-full
+                border
+                border-white/20
+                bg-white/10
+                px-4
+                py-2
+              "
+            >
+              <span
+                className="
+                  relative
+                  flex
+                  h-2.5
+                  w-2.5
+                "
+              >
+                <span
+                  className="
+                    absolute
+                    inline-flex
+                    h-full
+                    w-full
+                    animate-ping
+                    rounded-full
+                    bg-green-300
+                    opacity-70
+                  "
+                />
+
+                <span
+                  className="
+                    relative
+                    inline-flex
+                    h-2.5
+                    w-2.5
+                    rounded-full
+                    bg-green-400
+                  "
+                />
+              </span>
+
+              <span
+                className="
+                  text-[10px]
+                  font-black
+                  uppercase
+                  tracking-[0.15em]
+                  text-white
+                "
+              >
+                Rotom Network Online
+              </span>
             </div>
           </div>
 
-          {/* High-Tech Randomizer Scanner Frame */}
-          <div className="relative group mx-auto w-full max-w-xs sm:max-w-md mt-4 lg:mt-0">
-            <div className="relative aspect-square rounded-2xl md:rounded-3xl border-[8px] md:border-[12px] border-zinc-900 bg-zinc-800 p-3 md:p-4 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.2)] md:shadow-[15px_15px_0px_0px_rgba(0,0,0,0.2)] transition-transform group-hover:rotate-1">
-              <div className="relative h-full w-full overflow-hidden rounded-xl border-4 border-zinc-700 bg-[#3b4cca]">
-                 <div className="absolute inset-0 z-20 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%)] bg-[length:100%_4px]"></div>
-                 
-                 <div className="flex h-full w-full flex-col items-center justify-center bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-400 to-blue-800 p-4 md:p-8">
-                    <div className="relative h-36 w-36 md:h-48 md:w-48 rounded-full bg-white/10 border-4 border-white/20 backdrop-blur-sm flex items-center justify-center shadow-inner">
-                      <div className="absolute h-28 w-28 md:h-40 md:w-40 rounded-full border-4 border-dashed border-yellow-400/30 animate-[spin_10s_linear_infinite]" />
-                      
-                      {scannerMon ? (
-                        <div className="flex flex-col items-center justify-center">
-                          <img 
-                            key={scannerMon.name}
-                            src={scannerMon.image} 
-                            alt={scannerMon.name} 
-                            className="relative z-50 w-20 h-20 md:w-24 md:h-24 object-contain" 
-                            style={{ imageRendering: 'pixelated' }}
-                          />
-                          <span className="absolute bottom-2 md:bottom-3 text-yellow-400 font-black italic text-[10px] md:text-xs tracking-[0.2em] drop-shadow-[2px_2px_0px_rgba(0,0,0,0.8)] bg-zinc-900/80 px-2 py-0.5 border border-zinc-700 rounded-md uppercase max-w-[140px] truncate text-center">
-                            {scannerMon.name}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="h-6 w-6 animate-spin rounded-full border-2 border-white/20 border-t-white" />
-                      )}
-                    </div>
-                    
-                    <div className="mt-4 md:mt-6 w-full space-y-1.5 opacity-80">
-                      <p className="text-[8px] md:text-[9px] font-black tracking-widest text-blue-200 uppercase text-center animate-pulse">
-                        // ROTOM LIVE INTERCEPT ACTIVE //
-                      </p>
-                      <div className="h-1 w-full bg-white/20 rounded-full overflow-hidden"><div className="h-full w-[65%] bg-yellow-400 animate-pulse" /></div>
-                    </div>
-                 </div>
+          {/* ===============================================
+              ROTOM SCANNER
+          ================================================ */}
+
+          <div
+            className="
+              group
+              relative
+              mx-auto
+              w-full
+              max-w-[430px]
+            "
+          >
+            {/* =============================================
+                MOBILE TILT BUTTON
+
+                Desktop:
+                hover tilts the scanner.
+
+                Mobile/tablet:
+                tapping this button toggles tilt.
+            ============================================== */}
+
+            <button
+              type="button"
+              onClick={() => setScannerTilted((current) => !current)}
+              aria-label="Toggle scanner angle"
+              aria-pressed={scannerTilted}
+              className="
+                absolute
+                -right-2
+                -top-4
+                z-50
+                flex
+                h-11
+                w-11
+                items-center
+                justify-center
+                rounded-full
+                border-[3px]
+                border-zinc-950
+                bg-yellow-400
+                text-lg
+                font-black
+                text-zinc-950
+                shadow-[3px_3px_0_#18181b]
+                transition-all
+                duration-200
+                hover:bg-yellow-300
+                active:translate-x-0.5
+                active:translate-y-0.5
+                active:shadow-[1px_1px_0_#18181b]
+                lg:hidden
+              "
+            >
+              <span
+                className={`
+                  block
+                  transition-transform
+                  duration-300
+
+                  ${scannerTilted ? "rotate-[135deg]" : "-rotate-45"}
+                `}
+              >
+                ➜
+              </span>
+            </button>
+
+            {/* =============================================
+                HARDWARE BODY
+            ============================================== */}
+
+            <div
+              className={`
+                relative
+                rounded-[2rem]
+                border-[10px]
+                border-zinc-950
+                bg-zinc-800
+                p-3
+                shadow-[12px_14px_0_rgba(24,24,27,0.35)]
+                transition-transform
+                duration-300
+                ease-out
+                sm:p-4
+
+                lg:group-hover:rotate-[1.5deg]
+                lg:group-hover:scale-[1.015]
+
+                ${
+                  scannerTilted
+                    ? "rotate-[1.5deg] scale-[1.015]"
+                    : "rotate-0 scale-100"
+                }
+              `}
+            >
+              {/* ===========================================
+                  HARDWARE LIGHTS
+              ============================================ */}
+
+              <div
+                className="
+                  mb-3
+                  flex
+                  items-center
+                  justify-between
+                  px-2
+                "
+              >
+                <div className="flex gap-2">
+                  <span
+                    className="
+                      h-3
+                      w-3
+                      rounded-full
+                      border
+                      border-black
+                      bg-blue-400
+                      shadow-[0_0_8px_#60a5fa]
+                    "
+                  />
+
+                  <span
+                    className="
+                      h-3
+                      w-3
+                      rounded-full
+                      border
+                      border-black
+                      bg-yellow-400
+                    "
+                  />
+
+                  <span
+                    className="
+                      h-3
+                      w-3
+                      rounded-full
+                      border
+                      border-black
+                      bg-green-400
+                    "
+                  />
+                </div>
+
+                <div
+                  className="
+                    flex
+                    items-center
+                    gap-2
+                  "
+                >
+                  <span
+                    className="
+                      h-1.5
+                      w-1.5
+                      animate-pulse
+                      rounded-full
+                      bg-green-400
+                      shadow-[0_0_6px_#4ade80]
+                    "
+                  />
+
+                  <span
+                    className="
+                      font-mono
+                      text-[8px]
+                      font-black
+                      uppercase
+                      tracking-[0.15em]
+                      text-zinc-500
+                    "
+                  >
+                    SCAN // ACTIVE
+                  </span>
+                </div>
               </div>
-              <div className="absolute -left-6 md:-left-8 top-1/2 -translate-y-1/2 space-y-1.5 md:space-y-2">
-                <div className="h-3 w-3 md:h-4 md:w-4 rounded-full bg-zinc-900" />
-                <div className="h-3 w-3 md:h-4 md:w-4 rounded-full bg-zinc-900" />
+
+              {/* ===========================================
+                  SCANNER SCREEN
+              ============================================ */}
+
+              <div
+                className={`
+                  relative
+                  aspect-square
+                  overflow-hidden
+                  rounded-[1.4rem]
+                  border-4
+                  border-zinc-950
+                  bg-gradient-to-b
+
+                  ${scannerMon?.grad || "from-blue-400 to-blue-800"}
+                `}
+              >
+                {/* LCD GRID */}
+
+                <div
+                  className="
+                    pointer-events-none
+                    absolute
+                    inset-0
+                    opacity-10
+                    bg-[linear-gradient(to_right,#fff_1px,transparent_1px),linear-gradient(to_bottom,#fff_1px,transparent_1px)]
+                    bg-[size:20px_20px]
+                  "
+                />
+
+                {/* SCANLINES */}
+
+                <div
+                  className="
+                    pointer-events-none
+                    absolute
+                    inset-0
+                    z-30
+                    opacity-20
+                    bg-[repeating-linear-gradient(0deg,transparent,transparent_3px,#000_3px,#000_5px)]
+                  "
+                />
+
+                {/* =========================================
+                    RADAR CIRCLE
+                ========================================== */}
+
+                <div
+                  className="
+                    absolute
+                    left-1/2
+                    top-1/2
+                    flex
+                    h-[74%]
+                    w-[74%]
+                    -translate-x-1/2
+                    -translate-y-1/2
+                    items-center
+                    justify-center
+                    rounded-full
+                    border-4
+                    border-white/15
+                    bg-white/5
+                    shadow-inner
+                  "
+                >
+                  {/* ROTATING OUTER RING */}
+
+                  <div
+                    className="
+                      pointer-events-none
+                      absolute
+                      inset-[7%]
+                      animate-[spin_8s_linear_infinite]
+                      rounded-full
+                      border-2
+                      border-dashed
+                      border-yellow-300/40
+                    "
+                  />
+
+                  {/* INNER TARGET RING */}
+
+                  <div
+                    className="
+                      pointer-events-none
+                      absolute
+                      inset-[22%]
+                      rounded-full
+                      border
+                      border-white/15
+                    "
+                  />
+
+                  {/* HORIZONTAL AXIS */}
+
+                  <div
+                    className="
+                      pointer-events-none
+                      absolute
+                      left-1/2
+                      top-1/2
+                      h-px
+                      w-[105%]
+                      -translate-x-1/2
+                      bg-white/15
+                    "
+                  />
+
+                  {/* VERTICAL AXIS */}
+
+                  <div
+                    className="
+                      pointer-events-none
+                      absolute
+                      left-1/2
+                      top-1/2
+                      h-[105%]
+                      w-px
+                      -translate-y-1/2
+                      bg-white/15
+                    "
+                  />
+
+                  {/* =======================================
+                      CONSISTENT POKEMON BOX
+
+                      Every Pokémon uses exactly the
+                      same display dimensions.
+
+                      The sprite itself uses object-contain
+                      so proportions stay correct.
+                  ======================================== */}
+
+                  <div
+                    className="
+                      relative
+                      z-20
+                      flex
+                      h-[60%]
+                      w-[60%]
+                      items-center
+                      justify-center
+                    "
+                  >
+                    {scannerLoading ? (
+                      <div
+                        className="
+                          h-10
+                          w-10
+                          animate-spin
+                          rounded-full
+                          border-4
+                          border-white/20
+                          border-t-yellow-300
+                        "
+                      />
+                    ) : scannerMon && scannerImage ? (
+                      <img
+                        /*
+                         * A new key guarantees
+                         * a freshly-mounted GIF
+                         * whenever the scanner
+                         * changes Pokémon or
+                         * fallback source.
+                         */
+                        key={`${scannerMon.id}-${scannerMon.spriteIndex}-${scannerImage}`}
+                        src={scannerImage}
+                        alt={scannerMon.displayName}
+                        onError={handleScannerSpriteError}
+                        className={`
+                          block
+                          h-full
+                          w-full
+                          object-contain
+                          object-center
+                          drop-shadow-[0_8px_8px_rgba(0,0,0,0.28)]
+
+                          ${
+                            scannerImageIsAnimated
+                              ? ""
+                              : "animate-[bounce_2.8s_ease-in-out_infinite]"
+                          }
+                        `}
+                        style={{
+                          imageRendering: "pixelated",
+                        }}
+                      />
+                    ) : (
+                      <span
+                        className="
+                          text-6xl
+                          font-black
+                          text-white/30
+                        "
+                      >
+                        ?
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* =========================================
+                    POKEMON NAME
+
+                    "Target Found" removed.
+                ========================================== */}
+
+                {scannerMon && (
+                  <div
+                    className="
+                      absolute
+                      bottom-4
+                      left-1/2
+                      z-40
+                      -translate-x-1/2
+                    "
+                  >
+                    <div
+                      className="
+                        flex
+                        items-center
+                        gap-2
+                        whitespace-nowrap
+                        rounded-lg
+                        border-2
+                        border-zinc-950
+                        bg-zinc-950/90
+                        px-3
+                        py-2
+                        shadow-[3px_3px_0_rgba(0,0,0,0.25)]
+                        backdrop-blur-sm
+                      "
+                    >
+                      <span
+                        className="
+                          max-w-[130px]
+                          truncate
+                          text-[10px]
+                          font-black
+                          uppercase
+                          italic
+                          tracking-[0.08em]
+                          text-yellow-400
+                          sm:max-w-[175px]
+                          sm:text-xs
+                        "
+                      >
+                        {scannerMon.displayName}
+                      </span>
+
+                      <span
+                        className="
+                          rounded
+                          bg-white
+                          px-1.5
+                          py-0.5
+                          text-[7px]
+                          font-black
+                          uppercase
+                          tracking-wide
+                          text-zinc-950
+                        "
+                      >
+                        {scannerMon.type}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* =========================================
+                    SCREEN CORNERS
+                ========================================== */}
+
+                <span
+                  className="
+                    pointer-events-none
+                    absolute
+                    left-3
+                    top-3
+                    h-4
+                    w-4
+                    border-l-2
+                    border-t-2
+                    border-white/30
+                  "
+                />
+
+                <span
+                  className="
+                    pointer-events-none
+                    absolute
+                    right-3
+                    top-3
+                    h-4
+                    w-4
+                    border-r-2
+                    border-t-2
+                    border-white/30
+                  "
+                />
+
+                <span
+                  className="
+                    pointer-events-none
+                    absolute
+                    bottom-3
+                    left-3
+                    h-4
+                    w-4
+                    border-b-2
+                    border-l-2
+                    border-white/30
+                  "
+                />
+
+                <span
+                  className="
+                    pointer-events-none
+                    absolute
+                    bottom-3
+                    right-3
+                    h-4
+                    w-4
+                    border-b-2
+                    border-r-2
+                    border-white/30
+                  "
+                />
+              </div>
+
+              {/* ===========================================
+                  LOWER HARDWARE
+
+                  No Auto Scan / 5s text.
+              ============================================ */}
+
+              <div
+                className="
+                  mt-4
+                  flex
+                  items-center
+                  justify-between
+                  px-2
+                "
+              >
+                <div
+                  className="
+                    flex
+                    items-center
+                    gap-2
+                  "
+                >
+                  <span
+                    className="
+                      h-4
+                      w-4
+                      rounded-full
+                      border-2
+                      border-zinc-950
+                      bg-red-500
+                    "
+                  />
+
+                  <span
+                    className="
+                      h-1.5
+                      w-8
+                      rounded-full
+                      bg-zinc-950
+                    "
+                  />
+                </div>
+
+                <div
+                  className="
+                    flex
+                    items-center
+                    gap-1
+                  "
+                >
+                  <span
+                    className="
+                      h-1.5
+                      w-8
+                      rounded-full
+                      bg-zinc-950
+                    "
+                  />
+
+                  <span
+                    className="
+                      h-1.5
+                      w-5
+                      rounded-full
+                      bg-zinc-600
+                    "
+                  />
+
+                  <span
+                    className="
+                      h-1.5
+                      w-3
+                      rounded-full
+                      bg-zinc-600
+                    "
+                  />
+                </div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Stats Bar */}
-      <section className="mx-auto -mt-8 md:-mt-12 w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            { label: 'National Dex', val: '1025', color: 'bg-indigo-600', icon: '🌐' },
-            { label: 'Regional Dex Entry', val: '151', color: 'bg-red-500', icon: '🗺️' },
-            { label: 'Discovered Regions', val: '09', color: 'bg-emerald-500', icon: '🏔️' },
-            { label: 'Types', val: '18', color: 'bg-amber-500', icon: '🧬' }
-          ].map((stat, i) => (
-            <div key={i} className="flex items-center gap-4 rounded-xl md:rounded-2xl border-4 border-zinc-900 bg-white p-4 md:p-5 shadow-[4px_4px_0px_0px_rgba(24,24,27,1)] md:shadow-[6px_6px_0px_0px_rgba(24,24,27,1)] transition-all hover:-translate-y-1">
-              <div className={`flex h-10 w-10 md:h-12 md:w-12 shrink-0 items-center justify-center rounded-lg md:rounded-xl border-2 border-zinc-900 ${stat.color} text-xl md:text-2xl shadow-[2px_2px_0px_0px_rgba(24,24,27,1)]`}>
+      {/* ===================================================
+          SYSTEM STATS
+      ==================================================== */}
+
+      <section
+        className="
+          relative
+          z-20
+          mx-auto
+          -mt-7
+          w-full
+          max-w-7xl
+          px-4
+          sm:px-6
+          lg:px-8
+        "
+      >
+        <div
+          className="
+            grid
+            grid-cols-2
+            gap-3
+            lg:grid-cols-4
+          "
+        >
+          {stats.map((stat) => (
+            <article
+              key={stat.label}
+              className="
+                  rounded-2xl
+                  border-[3px]
+                  border-zinc-950
+                  bg-white
+                  p-4
+                  shadow-[5px_5px_0_#18181b]
+                  transition
+                  hover:-translate-y-1
+                  sm:p-5
+                "
+            >
+              <div
+                className={`
+                    flex
+                    h-10
+                    w-10
+                    items-center
+                    justify-center
+                    rounded-lg
+                    border-2
+                    border-zinc-950
+                    text-lg
+                    shadow-[2px_2px_0_#18181b]
+
+                    ${stat.color}
+                  `}
+              >
                 {stat.icon}
               </div>
-              <div>
-                <p className="text-xl md:text-2xl font-black text-zinc-900 leading-none">{stat.val}</p>
-                <p className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-zinc-400 mt-1">{stat.label}</p>
-              </div>
-            </div>
+
+              <p
+                className="
+                    mt-4
+                    text-3xl
+                    font-black
+                    tracking-tight
+                    text-zinc-950
+                  "
+              >
+                {stat.value}
+              </p>
+
+              <p
+                className="
+                    mt-1
+                    text-[9px]
+                    font-black
+                    uppercase
+                    tracking-[0.13em]
+                    text-zinc-400
+                    sm:text-[10px]
+                  "
+              >
+                {stat.label}
+              </p>
+            </article>
           ))}
         </div>
       </section>
 
-      {/* Chronological Research Lab Registry */}
-      <section className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 space-y-6 md:space-y-8">
-        <div className="flex flex-col items-start text-left gap-1 border-b-4 border-zinc-300 pb-3 md:pb-4">
-          <h2 className="text-2xl md:text-3xl font-black text-zinc-900 uppercase italic tracking-tighter">Chronological Index Log</h2>
-          <p className="text-[10px] md:text-xs font-bold text-zinc-400 uppercase tracking-wider">Sequential Database Streaming Matrix</p>
-        </div>
+      {/* ===================================================
+          KANTO DATABASE
+      ==================================================== */}
 
-        {/* Flanked Carousel Layout Container */}
-        {/* On mobile, this uses a vertical flex sequence. Elements arrange natively or get adjusted */}
-        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 md:gap-4 relative px-10 md:px-0">
-          
-          {/* LEFT ARROW BUTTON */}
-          {/* Mobile: Absolute position aligned perfectly next to the middle (2nd) card */}
-          <button 
-            onClick={handlePrev}
-            disabled={currentIndex === 1}
-            className="absolute left-0 top-[50%] md:top-auto -translate-y-1/2 md:translate-y-0 md:relative flex items-center justify-center h-8 w-8 sm:h-10 sm:w-10 md:h-14 md:w-14 shrink-0 border-4 border-zinc-900 bg-white text-zinc-900 font-black rounded-lg md:rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] md:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-zinc-100 disabled:opacity-30 disabled:hover:bg-white disabled:cursor-not-allowed active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all z-20 text-sm md:text-xl order-1"
-          >
-            ◀
-          </button>
+      <section
+        className="
+          mx-auto
+          mt-12
+          w-full
+          max-w-7xl
+          px-4
+          sm:px-6
+          lg:px-8
+        "
+      >
+        {/* HEADER */}
 
-          {/* CORE CARDS CONTENT GRID WINDOW */}
-          <div className="flex-1 order-2">
-            {loadingCarousel ? (
-              <div className="flex justify-center items-center py-20 md:py-32 w-full">
-                <div className="h-11 w-11 animate-spin rounded-full border-4 border-zinc-300 border-t-[#ff1c1c]"></div>
-              </div>
-            ) : (
-              /* Mobile first: 1 column vertical structure. Cards are padded nicely */
-              <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-3 w-full">
-                {carouselPokemon.map((poke) => (
-                  <article key={poke.id} className={`rotom-card ${poke.bg}`}>
-                    {/* Compact structural padding for small mobile displays */}
-                    <div className="p-3 md:p-5">
-                      
-                      {/* Image Preview Box - Aspect video scaled lower on mobile */}
-                      <div className={`relative flex aspect-[21/9] md:aspect-video items-center justify-center rounded-lg md:rounded-2xl bg-gradient-to-b ${poke.grad} border-4 border-zinc-900 shadow-inner overflow-hidden`}>
-                        <div className="absolute inset-0 opacity-20 bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,#000_2px,#000_4px)]" />
-                        <img 
-                          src={poke.image} 
-                          alt={poke.name} 
-                          className="relative z-10 w-14 h-14 md:w-24 md:h-24 object-contain transition-transform group-hover:scale-110" 
-                          onError={(e) => {
-                            e.target.src = poke.fallbackImage;
-                          }}
-                          style={{ imageRendering: 'pixelated' }}
-                        />
-                      </div>
+        <div
+          className="
+            flex
+            flex-col
+            gap-3
+            border-b-4
+            border-zinc-300
+            pb-5
+            sm:flex-row
+            sm:items-end
+            sm:justify-between
+          "
+        >
+          <div>
+            <p
+              className="
+                font-mono
+                text-[9px]
+                font-black
+                uppercase
+                tracking-[0.18em]
+                text-[#cc0000]
+              "
+            >
+              Database Stream // Kanto
+            </p>
 
-                      {/* Header Badge Layer */}
-                      <div className="mt-2 md:mt-6 flex justify-between items-start gap-2">
-                        <div className="truncate">
-                          <span className="text-[8px] md:text-[10px] font-black uppercase text-zinc-400 tracking-widest block">NO. {poke.no}</span>
-                          <h3 className="text-base md:text-2xl font-black text-zinc-900 italic uppercase leading-none mt-0.5 truncate">{poke.name}</h3>
-                        </div>
-                        <span className="rounded-md md:rounded-lg border-2 border-zinc-900 bg-white px-1.5 py-0.5 md:py-1 text-[8px] md:text-[9px] font-black uppercase shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)] md:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] shrink-0">
-                          {poke.type}
-                        </span>
-                      </div>
-
-                      {/* Summary Vector Log */}
-                      <p className="mt-2 md:mt-4 text-[11px] md:text-sm font-bold leading-normal md:leading-relaxed text-zinc-600 line-clamp-2 md:line-clamp-3 h-8 md:h-15">
-                        {poke.desc}
-                      </p>
-                      
-                      <Button 
-                        to={`/pokedex/${poke.name}`}
-                        variant="secondary" 
-                        size="sm" 
-                        className="mt-3 md:mt-8 w-full text-center justify-center py-1.5 text-xs md:text-sm font-black"
-                      >
-                        OPEN DATA LOG
-                      </Button>
-                    </div>
-                  </article>
-                ))}
-              </div>     
-            )} 
+            <h2
+              className="
+                mt-1
+                text-3xl
+                font-black
+                uppercase
+                italic
+                tracking-tight
+                text-zinc-950
+                sm:text-4xl
+              "
+            >
+              Chronological Index
+            </h2>
           </div>
 
-          {/* RIGHT ARROW BUTTON */}
-          {/* Mobile: Absolute position aligned perfectly next to the middle (2nd) card */}
-          <button 
-            onClick={handleNext}
-            disabled={currentIndex + 3 > 151}
-            className="absolute right-0 top-[50%] md:top-auto -translate-y-1/2 md:translate-y-0 md:relative flex items-center justify-center h-8 w-8 sm:h-10 sm:w-10 md:h-14 md:w-14 shrink-0 border-4 border-zinc-900 bg-zinc-900 text-white font-black rounded-lg md:rounded-xl shadow-[2px_2px_0px_0px_rgba(255,28,28,1)] md:shadow-[4px_4px_0px_0px_rgba(255,28,28,1)] hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(255,28,28,1)] transition-all z-20 text-sm md:text-xl order-3"
+          <p
+            className="
+              max-w-md
+              text-xs
+              font-semibold
+              leading-5
+              text-zinc-500
+              sm:text-sm
+            "
           >
-            ▶
-          </button>
-          
+            Sequential Pokémon records retrieved from the Rotom mainframe
+            database.
+          </p>
+        </div>
+
+        {/* ===============================================
+            CAROUSEL
+        ================================================ */}
+
+        <div className="mt-7">
+          {loadingCarousel ? (
+            <div
+              className="
+                flex
+                min-h-[360px]
+                items-center
+                justify-center
+              "
+            >
+              <div className="text-center">
+                <div
+                  className="
+                    mx-auto
+                    h-12
+                    w-12
+                    animate-spin
+                    rounded-full
+                    border-4
+                    border-zinc-300
+                    border-t-[#ff1c1c]
+                  "
+                />
+
+                <p
+                  className="
+                    mt-4
+                    font-mono
+                    text-[10px]
+                    font-black
+                    uppercase
+                    tracking-[0.15em]
+                    text-zinc-400
+                  "
+                >
+                  Retrieving Database...
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div
+              className="
+                grid
+                gap-5
+                md:grid-cols-3
+              "
+            >
+              {carouselPokemon.map((poke) => (
+                <article
+                  key={poke.id}
+                  className={`
+                      group
+                      overflow-hidden
+                      rounded-[1.7rem]
+                      border-4
+                      border-zinc-950
+                      shadow-[6px_6px_0_#18181b]
+                      transition-all
+                      duration-200
+                      hover:-translate-y-1
+                      hover:shadow-[8px_8px_0_#18181b]
+
+                      ${poke.bg}
+                    `}
+                >
+                  <div className="p-4">
+                    {/* IMAGE */}
+
+                    <div
+                      className={`
+                          relative
+                          flex
+                          aspect-video
+                          items-center
+                          justify-center
+                          overflow-hidden
+                          rounded-2xl
+                          border-4
+                          border-zinc-950
+                          bg-gradient-to-b
+
+                          ${poke.grad}
+                        `}
+                    >
+                      <div
+                        className="
+                            pointer-events-none
+                            absolute
+                            inset-0
+                            opacity-15
+                            bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,#000_2px,#000_4px)]
+                          "
+                      />
+
+                      <div
+                        className="
+                            flex
+                            h-28
+                            w-28
+                            items-center
+                            justify-center
+                          "
+                      >
+                        <img
+                          src={poke.image}
+                          alt={poke.displayName || poke.name}
+                          onError={(event) => {
+                            if (poke.fallbackImage) {
+                              event.currentTarget.src = poke.fallbackImage;
+                            }
+                          }}
+                          className="
+                              h-full
+                              w-full
+                              object-contain
+                              transition-transform
+                              duration-300
+                              group-hover:scale-110
+                            "
+                          style={{
+                            imageRendering: "pixelated",
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* INFO */}
+
+                    <div
+                      className="
+                          mt-4
+                          flex
+                          items-start
+                          justify-between
+                          gap-3
+                        "
+                    >
+                      <div className="min-w-0">
+                        <span
+                          className="
+                              font-mono
+                              text-[9px]
+                              font-black
+                              uppercase
+                              tracking-[0.13em]
+                              text-zinc-400
+                            "
+                        >
+                          No. {poke.no}
+                        </span>
+
+                        <h3
+                          className="
+                              mt-1
+                              truncate
+                              text-2xl
+                              font-black
+                              uppercase
+                              italic
+                              tracking-tight
+                              text-zinc-950
+                            "
+                        >
+                          {poke.displayName || poke.name}
+                        </h3>
+                      </div>
+
+                      <span
+                        className="
+                            shrink-0
+                            rounded-lg
+                            border-2
+                            border-zinc-950
+                            bg-white
+                            px-2.5
+                            py-1
+                            text-[9px]
+                            font-black
+                            uppercase
+                            text-zinc-950
+                            shadow-[2px_2px_0_#18181b]
+                          "
+                      >
+                        {poke.type}
+                      </span>
+                    </div>
+
+                    {/* DESCRIPTION */}
+
+                    <p
+                      className="
+                          mt-3
+                          line-clamp-3
+                          min-h-[60px]
+                          text-sm
+                          font-medium
+                          leading-5
+                          text-zinc-600
+                        "
+                    >
+                      {poke.desc}
+                    </p>
+
+                    {/* ACTION */}
+
+                    <Button
+                      to={`/pokedex/${poke.name}`}
+                      variant="secondary"
+                      size="sm"
+                      className="mt-5 w-full"
+                    >
+                      Open Data Log
+                    </Button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+
+          {/* ===============================================
+              CAROUSEL NAVIGATION
+          ================================================ */}
+
+          <div
+            className="
+              mt-7
+              grid
+              grid-cols-2
+              gap-3
+              sm:flex
+              sm:items-center
+              sm:justify-center
+            "
+          >
+            <button
+              type="button"
+              onClick={handlePrev}
+              disabled={currentIndex === 1}
+              className="
+                min-h-11
+                rounded-xl
+                border-4
+                border-zinc-950
+                bg-white
+                px-6
+                text-xs
+                font-black
+                uppercase
+                text-zinc-950
+                shadow-[4px_4px_0_#18181b]
+                transition-all
+                active:translate-x-0.5
+                active:translate-y-0.5
+                active:shadow-[2px_2px_0_#18181b]
+                disabled:cursor-not-allowed
+                disabled:opacity-30
+              "
+            >
+              ◀ Prev
+            </button>
+
+            <div
+              className="
+                hidden
+                rounded-xl
+                border-2
+                border-zinc-300
+                bg-zinc-100
+                px-5
+                py-3
+                font-mono
+                text-[10px]
+                font-black
+                uppercase
+                tracking-[0.13em]
+                text-zinc-500
+                sm:block
+              "
+            >
+              {String(currentIndex).padStart(3, "0")}
+
+              {" — "}
+
+              {String(Math.min(currentIndex + 2, KANTO_MAX_ID)).padStart(
+                3,
+                "0",
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={currentIndex + 2 >= KANTO_MAX_ID}
+              className="
+                min-h-11
+                rounded-xl
+                border-4
+                border-zinc-950
+                bg-zinc-900
+                px-6
+                text-xs
+                font-black
+                uppercase
+                text-white
+                shadow-[4px_4px_0_#ff1c1c]
+                transition-all
+                active:translate-x-0.5
+                active:translate-y-0.5
+                active:shadow-[2px_2px_0_#ff1c1c]
+                disabled:cursor-not-allowed
+                disabled:opacity-30
+              "
+            >
+              Next ▶
+            </button>
+          </div>
         </div>
       </section>
 
-      {/* View Full RotomDex Section */}
-      <section className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 pt-4 md:pt-6">
-        <div className="flex justify-center">
-          <Button 
-            to="/pokedex" 
-            variant="primary" 
-            size="lg" 
-            className="w-full sm:w-auto px-6 py-3 md:px-12 md:py-4 text-base md:text-xl font-black italic tracking-wider shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] md:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] text-center justify-center"
+      {/* ===================================================
+          ROTOMDEX CTA
+      ==================================================== */}
+
+      <section
+        className="
+          mx-auto
+          mt-14
+          w-full
+          max-w-7xl
+          px-4
+          sm:px-6
+          lg:px-8
+        "
+      >
+        <div
+          className="
+            relative
+            overflow-hidden
+            rounded-[2rem]
+            border-4
+            border-zinc-950
+            bg-zinc-900
+            p-6
+            text-white
+            shadow-[8px_8px_0_#ff1c1c]
+            sm:p-8
+          "
+        >
+          <div
+            className="
+              pointer-events-none
+              absolute
+              inset-0
+              opacity-5
+              bg-[radial-gradient(#fff_1px,transparent_1px)]
+              [background-size:18px_18px]
+            "
+          />
+
+          <div
+            className="
+              relative
+              z-10
+              flex
+              flex-col
+              items-center
+              justify-between
+              gap-6
+              text-center
+              md:flex-row
+              md:text-left
+            "
           >
-            📟 ACCESS FULL ROTOMDEX SYSTEM
-          </Button>
+            <div>
+              <p
+                className="
+                  font-mono
+                  text-[9px]
+                  font-black
+                  uppercase
+                  tracking-[0.18em]
+                  text-yellow-400
+                "
+              >
+                Full Database Access
+              </p>
+
+              <h2
+                className="
+                  mt-2
+                  text-3xl
+                  font-black
+                  uppercase
+                  italic
+                  tracking-tight
+                "
+              >
+                Explore the Complete RotomDex
+              </h2>
+
+              <p
+                className="
+                  mt-3
+                  max-w-xl
+                  text-sm
+                  font-medium
+                  leading-6
+                  text-zinc-400
+                "
+              >
+                Search generations, filter Pokémon by type, and inspect complete
+                Pokédex profiles.
+              </p>
+            </div>
+
+            <Button
+              to="/pokedex"
+              variant="primary"
+              size="lg"
+              className="
+                w-full
+                shrink-0
+                md:w-auto
+              "
+            >
+              Access RotomDex
+            </Button>
+          </div>
         </div>
       </section>
     </div>

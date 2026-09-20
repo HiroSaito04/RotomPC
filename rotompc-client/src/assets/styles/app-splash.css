@@ -1,0 +1,984 @@
+/* rotompc-client/src/assets/styles/app-splash.css */
+
+/* =========================================================
+   ROOT
+========================================================= */
+
+.rotom-splash {
+  position: fixed;
+  inset: 0;
+
+  z-index: 9999;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  overflow: hidden;
+
+  background: radial-gradient(
+    circle at 50% 42%,
+    #f8ffff 0%,
+    #eef7f6 26%,
+    #e7efed 54%,
+    #dbe5e3 100%
+  );
+
+  color: #18181b;
+
+  opacity: 1;
+
+  transition:
+    opacity 420ms ease,
+    visibility 420ms ease;
+}
+
+/* =========================================================
+   EXIT
+========================================================= */
+
+.rotom-splash--exit {
+  opacity: 0;
+
+  visibility: hidden;
+
+  pointer-events: none;
+}
+
+/* =========================================================
+   GRID
+========================================================= */
+
+.rotom-splash__grid {
+  position: absolute;
+  inset: 0;
+
+  pointer-events: none;
+
+  opacity: 0.055;
+
+  background-image:
+    linear-gradient(#264653 1px, transparent 1px),
+    linear-gradient(90deg, #264653 1px, transparent 1px);
+
+  background-size: 24px 24px;
+
+  animation: rotomSplashGridMove 5s linear infinite;
+}
+
+/* =========================================================
+   AMBIENT ENERGY
+========================================================= */
+
+.rotom-splash__ambient {
+  position: absolute;
+
+  width: 520px;
+  height: 520px;
+
+  border-radius: 50%;
+
+  pointer-events: none;
+
+  filter: blur(60px);
+
+  opacity: 0.16;
+}
+
+.rotom-splash__ambient--one {
+  left: -180px;
+  top: -180px;
+
+  background: #e63946;
+
+  animation: rotomSplashAmbientOne 3s ease-in-out infinite alternate;
+}
+
+.rotom-splash__ambient--two {
+  right: -190px;
+  bottom: -190px;
+
+  background: #61e7ff;
+
+  animation: rotomSplashAmbientTwo 3.4s ease-in-out infinite alternate;
+}
+
+/* =========================================================
+   CONTENT
+========================================================= */
+
+.rotom-splash__content {
+  position: relative;
+
+  z-index: 5;
+
+  display: flex;
+
+  width: min(92vw, 430px);
+
+  flex-direction: column;
+
+  align-items: center;
+
+  padding: 24px 18px;
+
+  text-align: center;
+}
+
+/* =========================================================
+   SYSTEM CHIP
+========================================================= */
+
+.rotom-splash__system {
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 7px;
+
+  margin-bottom: 18px;
+
+  padding: 7px 10px;
+
+  border: 2px solid #18181b;
+
+  border-radius: 8px;
+
+  background: rgba(255, 255, 255, 0.88);
+
+  font-family: "IBM Plex Mono", monospace;
+
+  font-size: 7px;
+
+  font-weight: 800;
+
+  letter-spacing: 0.14em;
+
+  text-transform: uppercase;
+
+  box-shadow: 2px 2px 0 #18181b;
+
+  animation: rotomSplashSystemIn 420ms ease both;
+}
+
+.rotom-splash__system-dot {
+  width: 7px;
+  height: 7px;
+
+  border-radius: 50%;
+
+  background: #22c55e;
+
+  box-shadow: 0 0 9px rgba(34, 197, 94, 0.75);
+
+  animation: rotomSplashSystemDot 700ms ease-in-out infinite alternate;
+}
+
+/* =========================================================
+   CORE
+========================================================= */
+
+.rotom-splash__core {
+  position: relative;
+
+  display: flex;
+
+  width: 190px;
+  height: 190px;
+
+  align-items: center;
+  justify-content: center;
+
+  animation: rotomSplashCoreEnter 650ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* =========================================================
+   ELECTRIC GLOW
+========================================================= */
+
+.rotom-splash__electric-glow {
+  position: absolute;
+
+  inset: 25px;
+
+  border-radius: 50%;
+
+  background: radial-gradient(
+    circle,
+    rgba(255, 243, 106, 0.85) 0%,
+    rgba(255, 214, 10, 0.34) 32%,
+    rgba(97, 231, 255, 0.22) 54%,
+    transparent 74%
+  );
+
+  filter: blur(14px);
+
+  animation: rotomSplashGlow 480ms ease-in-out infinite alternate;
+}
+
+/* =========================================================
+   RINGS
+========================================================= */
+
+.rotom-splash__ring {
+  position: absolute;
+
+  border-radius: 50%;
+
+  pointer-events: none;
+}
+
+.rotom-splash__ring--outer {
+  inset: 7px;
+
+  border: 2px dashed rgba(230, 57, 70, 0.48);
+
+  animation: rotomSplashRingOuter 2.2s linear infinite;
+}
+
+.rotom-splash__ring--inner {
+  inset: 22px;
+
+  border: 2px dotted rgba(38, 70, 83, 0.45);
+
+  animation: rotomSplashRingInner 1.6s linear infinite reverse;
+}
+
+/* =========================================================
+   ICON SHELL
+========================================================= */
+
+.rotom-splash__icon-shell {
+  position: relative;
+
+  z-index: 5;
+
+  display: flex;
+
+  width: 125px;
+  height: 125px;
+
+  align-items: center;
+  justify-content: center;
+
+  overflow: hidden;
+}
+
+/* =========================================================
+   ICON
+========================================================= */
+
+.rotom-splash__icon {
+  display: block;
+
+  width: 100%;
+  height: 100%;
+
+  object-fit: contain;
+
+  user-select: none;
+
+  pointer-events: none;
+
+  filter: drop-shadow(0 6px 2px rgba(38, 70, 83, 0.24));
+
+  animation: rotomSplashIconBoot 1.25s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* =========================================================
+   SCANNER
+========================================================= */
+
+.rotom-splash__scan {
+  position: absolute;
+
+  z-index: 10;
+
+  left: 7px;
+  right: 7px;
+
+  top: -10px;
+
+  height: 4px;
+
+  border-radius: 999px;
+
+  background: linear-gradient(
+    90deg,
+    transparent,
+    #ffffff,
+    #61e7ff,
+    #ffffff,
+    transparent
+  );
+
+  box-shadow:
+    0 0 6px #ffffff,
+    0 0 15px #61e7ff;
+
+  opacity: 0;
+
+  animation: rotomSplashScan 1.05s ease-in-out 520ms 1 both;
+}
+
+/* =========================================================
+   BOLTS
+========================================================= */
+
+.rotom-splash__bolt {
+  position: absolute;
+
+  z-index: 3;
+
+  width: 10px;
+  height: 34px;
+
+  background: linear-gradient(
+    to bottom,
+    #ffffff,
+    #fff36a 24%,
+    #ffd60a 63%,
+    #61e7ff
+  );
+
+  clip-path: polygon(
+    56% 0,
+    100% 0,
+    68% 36%,
+    100% 36%,
+    20% 100%,
+    41% 58%,
+    4% 58%
+  );
+
+  filter: drop-shadow(0 0 4px #fff36a)
+    drop-shadow(0 0 8px rgba(97, 231, 255, 0.9));
+
+  opacity: 0;
+
+  animation: rotomSplashBolt 380ms steps(2, end) infinite;
+}
+
+.rotom-splash__bolt--1 {
+  left: 27px;
+  top: 25px;
+
+  transform: rotate(-42deg);
+
+  animation-delay: 120ms;
+}
+
+.rotom-splash__bolt--2 {
+  right: 25px;
+  top: 31px;
+
+  transform: rotate(42deg);
+
+  animation-delay: 210ms;
+}
+
+.rotom-splash__bolt--3 {
+  right: 11px;
+  top: 86px;
+
+  transform: rotate(83deg);
+
+  animation-delay: 310ms;
+}
+
+.rotom-splash__bolt--4 {
+  right: 37px;
+  bottom: 10px;
+
+  transform: rotate(150deg);
+
+  animation-delay: 160ms;
+}
+
+.rotom-splash__bolt--5 {
+  left: 36px;
+  bottom: 11px;
+
+  transform: rotate(210deg);
+
+  animation-delay: 280ms;
+}
+
+.rotom-splash__bolt--6 {
+  left: 9px;
+  top: 85px;
+
+  transform: rotate(270deg);
+
+  animation-delay: 90ms;
+}
+
+/* =========================================================
+   SPARKS
+========================================================= */
+
+.rotom-splash__spark {
+  position: absolute;
+
+  z-index: 4;
+
+  width: 6px;
+  height: 6px;
+
+  border-radius: 50%;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 0 5px #ffffff,
+    0 0 10px #fff36a,
+    0 0 17px #61e7ff;
+
+  animation: rotomSplashSpark 540ms ease-in-out infinite;
+}
+
+.rotom-splash__spark--1 {
+  left: 21px;
+  top: 75px;
+}
+
+.rotom-splash__spark--2 {
+  right: 28px;
+  top: 17px;
+
+  animation-delay: -180ms;
+}
+
+.rotom-splash__spark--3 {
+  right: 12px;
+  bottom: 55px;
+
+  animation-delay: -320ms;
+}
+
+.rotom-splash__spark--4 {
+  left: 60px;
+  bottom: 2px;
+
+  animation-delay: -100ms;
+}
+
+.rotom-splash__spark--5 {
+  left: 80px;
+  top: 8px;
+
+  animation-delay: -250ms;
+}
+
+/* =========================================================
+   BRAND
+========================================================= */
+
+.rotom-splash__brand {
+  margin-top: 5px;
+
+  animation: rotomSplashBrandIn 500ms ease 700ms both;
+}
+
+.rotom-splash__brand h1 {
+  margin: 0;
+
+  color: #18181b;
+
+  font-family: "Fredoka", sans-serif;
+
+  font-size: clamp(29px, 8vw, 38px);
+
+  font-weight: 700;
+
+  font-style: italic;
+
+  line-height: 0.95;
+
+  letter-spacing: -0.055em;
+}
+
+.rotom-splash__brand h1 span {
+  color: #e63946;
+}
+
+.rotom-splash__brand p {
+  margin: 7px 0 0;
+
+  color: rgba(38, 70, 83, 0.64);
+
+  font-family: "IBM Plex Mono", monospace;
+
+  font-size: 7px;
+
+  font-weight: 800;
+
+  letter-spacing: 0.17em;
+
+  text-transform: uppercase;
+}
+
+/* =========================================================
+   STATUS
+========================================================= */
+
+.rotom-splash__status {
+  width: min(100%, 310px);
+
+  margin-top: 23px;
+
+  animation: rotomSplashStatusIn 450ms ease 920ms both;
+}
+
+.rotom-splash__status-row {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  margin-bottom: 7px;
+
+  color: rgba(38, 70, 83, 0.64);
+
+  font-family: "IBM Plex Mono", monospace;
+
+  font-size: 7px;
+
+  font-weight: 800;
+
+  letter-spacing: 0.1em;
+
+  text-transform: uppercase;
+}
+
+.rotom-splash__status-online {
+  color: #15803d;
+}
+
+/* =========================================================
+   PROGRESS
+========================================================= */
+
+.rotom-splash__progress {
+  position: relative;
+
+  width: 100%;
+  height: 10px;
+
+  overflow: hidden;
+
+  border: 2px solid #18181b;
+
+  border-radius: 999px;
+
+  background: #ffffff;
+
+  box-shadow: 2px 2px 0 #18181b;
+}
+
+.rotom-splash__progress-fill {
+  display: block;
+
+  width: 0;
+  height: 100%;
+
+  background: linear-gradient(
+    90deg,
+    #e63946 0%,
+    #ff5964 42%,
+    #ffd60a 72%,
+    #61e7ff 100%
+  );
+
+  animation: rotomSplashProgress 1.8s cubic-bezier(0.25, 0.8, 0.25, 1) 300ms
+    forwards;
+}
+
+.rotom-splash__boot-text {
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  margin-top: 11px;
+
+  color: rgba(38, 70, 83, 0.42);
+
+  font-family: "IBM Plex Mono", monospace;
+
+  font-size: 6px;
+
+  font-weight: 800;
+
+  letter-spacing: 0.07em;
+
+  text-transform: uppercase;
+}
+
+/* =========================================================
+   LOADING DOTS
+========================================================= */
+
+.rotom-splash__loading-dots {
+  display: flex;
+
+  gap: 5px;
+
+  margin-top: 18px;
+}
+
+.rotom-splash__loading-dots span {
+  width: 5px;
+  height: 5px;
+
+  border-radius: 50%;
+
+  background: #264653;
+
+  animation: rotomSplashDot 720ms ease-in-out infinite;
+}
+
+.rotom-splash__loading-dots span:nth-child(2) {
+  animation-delay: 120ms;
+}
+
+.rotom-splash__loading-dots span:nth-child(3) {
+  animation-delay: 240ms;
+}
+
+/* =========================================================
+   ANIMATIONS
+========================================================= */
+
+@keyframes rotomSplashCoreEnter {
+  0% {
+    opacity: 0;
+
+    transform: scale(0.3) rotate(-18deg);
+
+    filter: brightness(4);
+  }
+
+  50% {
+    opacity: 1;
+
+    transform: scale(1.12) rotate(4deg);
+  }
+
+  100% {
+    opacity: 1;
+
+    transform: scale(1) rotate(0);
+  }
+}
+
+@keyframes rotomSplashIconBoot {
+  0% {
+    opacity: 0;
+
+    transform: scale(0.1) rotate(-18deg);
+
+    filter: brightness(5) saturate(0);
+  }
+
+  38% {
+    opacity: 1;
+
+    transform: scale(1.15) rotate(4deg);
+
+    filter: brightness(2) saturate(1.7);
+  }
+
+  55% {
+    transform: scale(0.94) rotate(-2deg);
+  }
+
+  72% {
+    transform: scale(1.04) rotate(1deg);
+  }
+
+  100% {
+    opacity: 1;
+
+    transform: scale(1) rotate(0);
+
+    filter: brightness(1) saturate(1);
+  }
+}
+
+@keyframes rotomSplashScan {
+  0% {
+    top: -8px;
+
+    opacity: 0;
+  }
+
+  15% {
+    opacity: 1;
+  }
+
+  82% {
+    opacity: 1;
+  }
+
+  100% {
+    top: calc(100% + 5px);
+
+    opacity: 0;
+  }
+}
+
+@keyframes rotomSplashGlow {
+  from {
+    opacity: 0.35;
+
+    transform: scale(0.8);
+  }
+
+  to {
+    opacity: 1;
+
+    transform: scale(1.2);
+  }
+}
+
+@keyframes rotomSplashRingOuter {
+  from {
+    transform: rotate(0deg) scale(0.94);
+  }
+
+  50% {
+    transform: rotate(180deg) scale(1.02);
+  }
+
+  to {
+    transform: rotate(360deg) scale(0.94);
+  }
+}
+
+@keyframes rotomSplashRingInner {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes rotomSplashBolt {
+  0% {
+    opacity: 0.05;
+  }
+
+  35% {
+    opacity: 1;
+  }
+
+  62% {
+    opacity: 0.22;
+  }
+
+  100% {
+    opacity: 0.75;
+  }
+}
+
+@keyframes rotomSplashSpark {
+  0%,
+  100% {
+    opacity: 0.15;
+
+    transform: scale(0.45);
+  }
+
+  50% {
+    opacity: 1;
+
+    transform: scale(1.35);
+  }
+}
+
+@keyframes rotomSplashProgress {
+  0% {
+    width: 0%;
+  }
+
+  18% {
+    width: 12%;
+  }
+
+  42% {
+    width: 48%;
+  }
+
+  70% {
+    width: 77%;
+  }
+
+  88% {
+    width: 93%;
+  }
+
+  100% {
+    width: 100%;
+  }
+}
+
+@keyframes rotomSplashBrandIn {
+  from {
+    opacity: 0;
+
+    transform: translateY(8px) scale(0.94);
+  }
+
+  to {
+    opacity: 1;
+
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes rotomSplashStatusIn {
+  from {
+    opacity: 0;
+
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+
+    transform: translateY(0);
+  }
+}
+
+@keyframes rotomSplashSystemIn {
+  from {
+    opacity: 0;
+
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+
+    transform: translateY(0);
+  }
+}
+
+@keyframes rotomSplashSystemDot {
+  from {
+    opacity: 0.35;
+
+    transform: scale(0.75);
+  }
+
+  to {
+    opacity: 1;
+
+    transform: scale(1.15);
+  }
+}
+
+@keyframes rotomSplashDot {
+  0%,
+  100% {
+    opacity: 0.25;
+
+    transform: translateY(0);
+  }
+
+  50% {
+    opacity: 1;
+
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes rotomSplashGridMove {
+  from {
+    background-position:
+      0 0,
+      0 0;
+  }
+
+  to {
+    background-position:
+      24px 24px,
+      24px 24px;
+  }
+}
+
+@keyframes rotomSplashAmbientOne {
+  from {
+    transform: translate(-20px, -10px) scale(0.9);
+  }
+
+  to {
+    transform: translate(30px, 20px) scale(1.15);
+  }
+}
+
+@keyframes rotomSplashAmbientTwo {
+  from {
+    transform: translate(15px, 10px) scale(0.92);
+  }
+
+  to {
+    transform: translate(-35px, -20px) scale(1.1);
+  }
+}
+
+/* =========================================================
+   SMALL MOBILE
+========================================================= */
+
+@media (max-height: 650px) {
+  .rotom-splash__content {
+    transform: scale(0.88);
+  }
+}
+
+/* =========================================================
+   DESKTOP
+========================================================= */
+
+@media (min-width: 640px) {
+  .rotom-splash__core {
+    width: 220px;
+    height: 220px;
+  }
+
+  .rotom-splash__icon-shell {
+    width: 145px;
+    height: 145px;
+  }
+
+  .rotom-splash__status {
+    width: 330px;
+  }
+}
+
+/* =========================================================
+   REDUCED MOTION
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .rotom-splash *,
+  .rotom-splash *::before,
+  .rotom-splash *::after {
+    animation-duration: 1ms !important;
+
+    animation-iteration-count: 1 !important;
+  }
+
+  .rotom-splash__progress-fill {
+    width: 100%;
+  }
+}
