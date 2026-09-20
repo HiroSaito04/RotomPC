@@ -8,11 +8,8 @@ const cors = require("cors");
 const connectDB = require("./config/db");
 
 const userRoutes = require("./routes/userRoutes");
-
 const articleRoutes = require("./routes/articleRoutes");
-
 const buddyRoutes = require("./routes/buddyRoutes");
-
 const rotomAIRoutes = require("./routes/rotomAIRoutes");
 
 const app = express();
@@ -21,60 +18,65 @@ const app = express();
    CORS
 ========================================================= */
 
-/*
- * JWT authentication uses the Authorization header,
- * not browser cookies, so credentials: true is not needed.
- *
- * CORS_ORIGINS can optionally contain:
- *
- * http://localhost:5173,https://rotompc.vercel.app
- */
 const configuredOrigins =
   process.env.CORS_ORIGINS?.split(",")
     .map((origin) => origin.trim())
     .filter(Boolean) || [];
 
 const corsOptions = {
-  origin:
-    configuredOrigins.length > 0
-      ? (origin, callback) => {
-          /*
-           * Requests such as Postman/server-to-server
-           * may not contain an Origin header.
-           */
-          if (!origin) {
-            return callback(null, true);
-          }
+  origin(origin, callback) {
+    /*
+     * Allow server-to-server, curl, Postman,
+     * health checks, etc.
+     */
+    if (!origin) {
+      return callback(null, true);
+    }
 
-          if (configuredOrigins.includes(origin)) {
-            return callback(null, true);
-          }
+    /*
+     * Development fallback when no explicit
+     * CORS_ORIGINS has been supplied.
+     */
+    if (configuredOrigins.length === 0) {
+      return callback(null, true);
+    }
 
-          return callback(new Error("Origin is not allowed by CORS."));
-        }
-      : "*",
+    if (configuredOrigins.includes(origin)) {
+      return callback(null, true);
+    }
 
-  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    console.warn("Blocked CORS origin:", origin);
 
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    return callback(
+      new Error("Origin is not allowed by CORS."),
+    );
+  },
+
+  methods: [
+    "GET",
+    "HEAD",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS",
+  ],
+
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Requested-With",
+  ],
 
   optionsSuccessStatus: 204,
 };
 
-/*
- * app.use(cors()) already handles normal
- * requests and preflight OPTIONS requests.
- */
 app.use(cors(corsOptions));
 
 /* =========================================================
    REQUEST PARSING
 ========================================================= */
 
-/*
- * Express already includes body parsing.
- * body-parser is unnecessary here.
- */
 app.use(
   express.json({
     limit: "1mb",
@@ -88,25 +90,53 @@ app.use(
   }),
 );
 
-/*
- * Multer independently handles multipart/form-data
- * for article image uploads.
- */
-
 /* =========================================================
    HEALTH CHECK
+
+   This intentionally runs BEFORE MongoDB middleware so
+   you can determine whether Vercel itself is running.
 ========================================================= */
 
 app.get("/", (req, res) => {
   return res.status(200).json({
     status: "success",
-
     message: "RotomPC server is running.",
-
     environment: process.env.NODE_ENV || "development",
-
     timestamp: new Date().toISOString(),
   });
+});
+
+app.get("/api/health", (req, res) => {
+  return res.status(200).json({
+    status: "success",
+    message: "RotomPC API is online.",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+/* =========================================================
+   DATABASE MIDDLEWARE
+
+   IMPORTANT FOR VERCEL:
+   Vercel imports the Express application instead of
+   relying on your local app.listen() startup path.
+
+   connectDB() should reuse an existing Mongoose connection
+   once one exists.
+========================================================= */
+
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+
+    return next();
+  } catch (error) {
+    console.error("Database connection error:", error);
+
+    return res.status(503).json({
+      message: "Database connection is currently unavailable.",
+    });
+  }
 });
 
 /* =========================================================
@@ -138,28 +168,18 @@ app.use((req, res) => {
 app.use((error, req, res, next) => {
   console.error("Unhandled server error:", error);
 
-  /*
-   * Multer file-size error.
-   */
   if (error.code === "LIMIT_FILE_SIZE") {
     return res.status(413).json({
       message: "Image exceeds the 5MB upload limit.",
     });
   }
 
-  /*
-   * Your uploadMiddleware throws
-   * this for unsupported images.
-   */
   if (error.message?.includes("Only JPG")) {
     return res.status(400).json({
       message: error.message,
     });
   }
 
-  /*
-   * CORS rejection.
-   */
   if (error.message === "Origin is not allowed by CORS.") {
     return res.status(403).json({
       message: "Origin is not allowed.",
@@ -175,12 +195,16 @@ app.use((error, req, res, next) => {
 });
 
 /* =========================================================
-   START SERVER
+   LOCAL SERVER
+
+   Vercel uses module.exports below.
+
+   Running `node index.js` locally still uses app.listen().
 ========================================================= */
 
 const PORT = process.env.PORT || 8000;
 
-const startServer = async () => {
+const startLocalServer = async () => {
   try {
     await connectDB();
 
@@ -194,18 +218,12 @@ const startServer = async () => {
   }
 };
 
-/*
- * Starts normally when running:
- *
- * node index.js
- * npm run dev
- *
- * But allows the Express app to be imported
- * by tests/serverless handlers without
- * automatically opening a port.
- */
 if (require.main === module) {
-  startServer();
+  startLocalServer();
 }
+
+/* =========================================================
+   VERCEL EXPORT
+========================================================= */
 
 module.exports = app;
