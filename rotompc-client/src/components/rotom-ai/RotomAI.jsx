@@ -19,6 +19,8 @@ import RotomAIChatModal from "./RotomAIChatModal";
 const RotomAI = ({ buddyVisible = false }) => {
   const [isOpen, setIsOpen] = useState(false);
 
+  const [input, setInput] = useState("");
+
   /* =======================================================
      CHAT
   ======================================================= */
@@ -27,10 +29,17 @@ const RotomAI = ({ buddyVisible = false }) => {
 
   /* =======================================================
      LAUNCHER CYCLE
+
+     ONE owner only.
+
+     RotomAILauncher is now purely visual and does not
+     create a second launcher cycle.
   ======================================================= */
 
   const launcher = useRotomAILauncherCycle({
-    isOpen,
+    paused: isOpen,
+
+    buddyVisible,
   });
 
   /* =======================================================
@@ -50,40 +59,68 @@ const RotomAI = ({ buddyVisible = false }) => {
   }, []);
 
   /* =======================================================
+     SEND
+
+     useRotomAIChat expects the actual message.
+  ======================================================= */
+
+  const handleSendMessage = useCallback(
+    async (quickPrompt) => {
+      const message = String(quickPrompt || input).trim();
+
+      if (!message || chat.loading || chat.historyLoading) {
+        return;
+      }
+
+      setInput("");
+
+      const result = await chat.sendMessage(message);
+
+      /*
+       * Restore unsent text if the request failed.
+       */
+      if (!result) {
+        setInput(message);
+      }
+    },
+    [chat, input],
+  );
+
+  /* =======================================================
      UI
   ======================================================= */
 
   return (
     <>
-      {/* ===================================================
-          FLOATING / DOCKED ROTOM
-      ==================================================== */}
+      {/* =================================================
+          ROTOM LAUNCHER
+      ================================================== */}
 
       {!isOpen && (
         <RotomAILauncher
           phase={launcher.phase}
           position={launcher.position}
-          teleporting={launcher.teleporting}
           teleportKey={launcher.teleportKey}
-          bubbleText={launcher.bubbleText}
+          bubbleText={launcher.bubble}
           buddyVisible={buddyVisible}
           onOpen={openRotomAI}
         />
       )}
 
-      {/* ===================================================
+      {/* =================================================
           CHAT MODAL
-      ==================================================== */}
+      ================================================== */}
 
       {isOpen && (
         <RotomAIChatModal
           messages={chat.messages}
-          input={chat.input}
-          setInput={chat.setInput}
-          sending={chat.sending}
+          input={input}
+          setInput={setInput}
+          sending={chat.loading}
+          historyLoading={chat.historyLoading}
           error={chat.error}
-          sendMessage={chat.sendMessage}
-          clearConversation={chat.clearConversation}
+          sendMessage={handleSendMessage}
+          clearHistory={chat.clearHistory}
           onClose={closeRotomAI}
         />
       )}

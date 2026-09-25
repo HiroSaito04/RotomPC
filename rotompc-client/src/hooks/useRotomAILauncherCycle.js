@@ -1,3 +1,5 @@
+// rotompc-client/src/hooks/useRotomAILauncherCycle.js
+
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ROTOM_AI_DOCK_MESSAGES } from "@/constants/rotomAI";
@@ -17,82 +19,206 @@ const SETTLE_DURATION_MS = 720;
 const DOCK_DURATION_MS = 20000;
 
 /* =========================================================
-   SAFE AREA
+   BREAKPOINT
+
+   Below 768:
+   Rotom stacks ABOVE Buddy.
+
+   768+:
+   Rotom sits BESIDE Buddy.
 ========================================================= */
 
-const EDGE_PADDING = 22;
+const MOBILE_BREAKPOINT = 768;
 
-const LAUNCHER_SIZE = 72;
+/* =========================================================
+   SIZE
+========================================================= */
+
+const MOBILE_LAUNCHER_SIZE = 58;
+
+const DESKTOP_LAUNCHER_SIZE = 68;
+
+const MOBILE_BUDDY_FALLBACK_SIZE = 56;
+
+const DESKTOP_BUDDY_FALLBACK_SIZE = 64;
+
+/* =========================================================
+   SPACING
+========================================================= */
+
+const EDGE_PADDING = 16;
+
+const MOBILE_STACK_GAP = 10;
+
+const DESKTOP_SIDE_GAP = 14;
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+const isMobileViewport = () => window.innerWidth < MOBILE_BREAKPOINT;
+
+const getLauncherSize = () =>
+  isMobileViewport() ? MOBILE_LAUNCHER_SIZE : DESKTOP_LAUNCHER_SIZE;
+
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+/* =========================================================
+   SAFE POSITION
+========================================================= */
+
+const clampPosition = (x, y, size) => {
+  const maxX = Math.max(EDGE_PADDING, window.innerWidth - size - EDGE_PADDING);
+
+  const maxY = Math.max(EDGE_PADDING, window.innerHeight - size - EDGE_PADDING);
+
+  return {
+    x: clamp(x, EDGE_PADDING, maxX),
+
+    y: clamp(y, EDGE_PADDING, maxY),
+  };
+};
 
 /* =========================================================
    RANDOM POSITION
 ========================================================= */
 
 const getRandomPosition = () => {
-  const width = window.innerWidth;
+  const size = getLauncherSize();
 
-  const height = window.innerHeight;
+  const maxX = Math.max(EDGE_PADDING, window.innerWidth - size - EDGE_PADDING);
 
-  const maxX = Math.max(EDGE_PADDING, width - LAUNCHER_SIZE - EDGE_PADDING);
+  const maxY = Math.max(EDGE_PADDING, window.innerHeight - size - EDGE_PADDING);
 
-  const maxY = Math.max(EDGE_PADDING, height - LAUNCHER_SIZE - EDGE_PADDING);
+  const x = EDGE_PADDING + Math.random() * Math.max(1, maxX - EDGE_PADDING);
 
-  return {
-    x: EDGE_PADDING + Math.random() * Math.max(1, maxX - EDGE_PADDING),
+  const y = EDGE_PADDING + Math.random() * Math.max(1, maxY - EDGE_PADDING);
 
-    y: EDGE_PADDING + Math.random() * Math.max(1, maxY - EDGE_PADDING),
-  };
+  return clampPosition(x, y, size);
+};
+
+/* =========================================================
+   FIND BUDDY BUTTON
+========================================================= */
+
+const findBuddyLauncher = () => {
+  /*
+   * Preferred:
+   *
+   * data-buddy-launcher="true"
+   *
+   * The aria selectors below are fallbacks
+   * so the layout still works while migrating.
+   */
+
+  return (
+    document.querySelector('[data-buddy-launcher="true"]') ||
+    document.querySelector('[aria-label="Open Buddy"]') ||
+    document.querySelector('[aria-label="Open Buddy Pokémon"]')
+  );
+};
+
+/* =========================================================
+   FALLBACK DOCK
+========================================================= */
+
+const getFallbackDockPosition = ({ buddyVisible }) => {
+  const mobile = isMobileViewport();
+
+  const size = getLauncherSize();
+
+  /*
+   * No Buddy visible:
+   * Rotom owns the bottom-right corner.
+   */
+
+  if (!buddyVisible) {
+    return clampPosition(
+      window.innerWidth - size - EDGE_PADDING,
+
+      window.innerHeight - size - EDGE_PADDING,
+
+      size,
+    );
+  }
+
+  /*
+   * Buddy visible:
+   * estimate its bottom-right position if its
+   * actual element cannot be found.
+   */
+
+  if (mobile) {
+    const buddySize = MOBILE_BUDDY_FALLBACK_SIZE;
+
+    return clampPosition(
+      window.innerWidth - size - EDGE_PADDING,
+
+      window.innerHeight - EDGE_PADDING - buddySize - MOBILE_STACK_GAP - size,
+
+      size,
+    );
+  }
+
+  const buddySize = DESKTOP_BUDDY_FALLBACK_SIZE;
+
+  return clampPosition(
+    window.innerWidth - EDGE_PADDING - buddySize - DESKTOP_SIDE_GAP - size,
+
+    window.innerHeight - EDGE_PADDING - buddySize / 2 - size / 2,
+
+    size,
+  );
 };
 
 /* =========================================================
    DOCK POSITION
 ========================================================= */
 
-const getDockPosition = () => {
-  const buddy = document.querySelector('[data-buddy-launcher="true"]');
+const getDockPosition = ({ buddyVisible }) => {
+  const size = getLauncherSize();
 
-  /*
-   * Fallback if Buddy is temporarily
-   * unavailable.
-   */
+  const buddy = buddyVisible ? findBuddyLauncher() : null;
 
   if (!buddy) {
-    return {
-      x: Math.max(18, window.innerWidth - 178),
-
-      y: Math.max(18, window.innerHeight - 105),
-    };
+    return getFallbackDockPosition({
+      buddyVisible,
+    });
   }
 
   const rect = buddy.getBoundingClientRect();
 
-  const isMobile = window.innerWidth < 640;
+  /*
+   * MOBILE
+   *
+   * Align Rotom's right edge with Buddy's
+   * right edge and place it directly above.
+   */
 
-  /* -----------------------------------------------------
-     MOBILE
+  if (isMobileViewport()) {
+    return clampPosition(
+      rect.right - size,
 
-     Sit centered above Buddy.
-  ----------------------------------------------------- */
+      rect.top - size - MOBILE_STACK_GAP,
 
-  if (isMobile) {
-    return {
-      x: rect.left + rect.width / 2 - LAUNCHER_SIZE / 2,
-
-      y: rect.top - LAUNCHER_SIZE - 12,
-    };
+      size,
+    );
   }
 
-  /* -----------------------------------------------------
-     DESKTOP
+  /*
+   * TABLET / DESKTOP
+   *
+   * Put Rotom directly beside Buddy,
+   * vertically centered.
+   */
 
-     Sit slightly left of Buddy.
-  ----------------------------------------------------- */
+  return clampPosition(
+    rect.left - size - DESKTOP_SIDE_GAP,
 
-  return {
-    x: rect.left - LAUNCHER_SIZE - 26,
+    rect.top + rect.height / 2 - size / 2,
 
-    y: rect.top + rect.height / 2 - LAUNCHER_SIZE / 2,
-  };
+    size,
+  );
 };
 
 /* =========================================================
@@ -116,7 +242,11 @@ const getRandomBubble = () => {
    HOOK
 ========================================================= */
 
-const useRotomAILauncherCycle = ({ paused = false } = {}) => {
+const useRotomAILauncherCycle = ({
+  paused = false,
+
+  buddyVisible = false,
+} = {}) => {
   const [phase, setPhase] = useState("teleporting");
 
   const [position, setPosition] = useState(() => ({
@@ -132,9 +262,9 @@ const useRotomAILauncherCycle = ({ paused = false } = {}) => {
 
   const cycleRef = useRef(0);
 
-  /* =======================================================
-     CLEAR TIMERS
-  ======================================================= */
+  /* =====================================================
+       CLEAR TIMERS
+    ===================================================== */
 
   const clearTimers = useCallback(() => {
     timersRef.current.forEach((timer) => {
@@ -144,9 +274,9 @@ const useRotomAILauncherCycle = ({ paused = false } = {}) => {
     timersRef.current = [];
   }, []);
 
-  /* =======================================================
-     TIMER HELPER
-  ======================================================= */
+  /* =====================================================
+       SCHEDULE
+    ===================================================== */
 
   const schedule = useCallback((callback, delay) => {
     const timer = window.setTimeout(callback, delay);
@@ -156,9 +286,9 @@ const useRotomAILauncherCycle = ({ paused = false } = {}) => {
     return timer;
   }, []);
 
-  /* =======================================================
-     START CYCLE
-  ======================================================= */
+  /* =====================================================
+       START CYCLE
+    ===================================================== */
 
   const startCycle = useCallback(() => {
     clearTimers();
@@ -171,17 +301,13 @@ const useRotomAILauncherCycle = ({ paused = false } = {}) => {
 
     setPhase("teleporting");
 
-    /*
-     * Start somewhere random.
-     */
-
     setPosition(getRandomPosition());
 
     setTeleportKey((current) => current + 1);
 
-    /* ---------------------------------------------------
-         TELEPORTS
-      --------------------------------------------------- */
+    /* -------------------------------------------------
+           TELEPORTS
+        ------------------------------------------------- */
 
     for (let index = 1; index < TELEPORT_COUNT; index += 1) {
       schedule(
@@ -199,14 +325,13 @@ const useRotomAILauncherCycle = ({ paused = false } = {}) => {
       );
     }
 
-    /* ---------------------------------------------------
-         FINAL TELEPORT FINISH
-
-         Do NOT immediately snap to dock.
-         First enter "settling".
-      --------------------------------------------------- */
-
     const teleportEnd = TELEPORT_COUNT * TELEPORT_INTERVAL_MS;
+
+    const settleStart = teleportEnd - TELEPORT_INTERVAL_MS + SETTLE_DELAY_MS;
+
+    /* -------------------------------------------------
+           SETTLING
+        ------------------------------------------------- */
 
     schedule(
       () => {
@@ -217,17 +342,12 @@ const useRotomAILauncherCycle = ({ paused = false } = {}) => {
         setPhase("settling");
       },
 
-      teleportEnd - TELEPORT_INTERVAL_MS + SETTLE_DELAY_MS,
+      settleStart,
     );
 
-    /* ---------------------------------------------------
-         GLIDE TO BUDDY
-
-         Keep current position during the phase change.
-         Then update position on the next frame so CSS
-         can animate from the current teleport location
-         to the dock location.
-      --------------------------------------------------- */
+    /* -------------------------------------------------
+           GLIDE TO BUDDY
+        ------------------------------------------------- */
 
     schedule(
       () => {
@@ -237,17 +357,21 @@ const useRotomAILauncherCycle = ({ paused = false } = {}) => {
 
         window.requestAnimationFrame(() => {
           window.requestAnimationFrame(() => {
-            setPosition(getDockPosition());
+            setPosition(
+              getDockPosition({
+                buddyVisible,
+              }),
+            );
           });
         });
       },
 
-      teleportEnd - TELEPORT_INTERVAL_MS + SETTLE_DELAY_MS + 32,
+      settleStart + 32,
     );
 
-    /* ---------------------------------------------------
-         DOCKED
-      --------------------------------------------------- */
+    /* -------------------------------------------------
+           DOCK
+        ------------------------------------------------- */
 
     schedule(
       () => {
@@ -255,17 +379,23 @@ const useRotomAILauncherCycle = ({ paused = false } = {}) => {
           return;
         }
 
+        setPosition(
+          getDockPosition({
+            buddyVisible,
+          }),
+        );
+
         setPhase("docked");
 
         setBubble(getRandomBubble());
       },
 
-      teleportEnd - TELEPORT_INTERVAL_MS + SETTLE_DELAY_MS + SETTLE_DURATION_MS,
+      settleStart + SETTLE_DURATION_MS,
     );
 
-    /* ---------------------------------------------------
-         RESTART
-      --------------------------------------------------- */
+    /* -------------------------------------------------
+           RESTART
+        ------------------------------------------------- */
 
     schedule(
       () => {
@@ -276,17 +406,13 @@ const useRotomAILauncherCycle = ({ paused = false } = {}) => {
         startCycle();
       },
 
-      teleportEnd -
-        TELEPORT_INTERVAL_MS +
-        SETTLE_DELAY_MS +
-        SETTLE_DURATION_MS +
-        DOCK_DURATION_MS,
+      settleStart + SETTLE_DURATION_MS + DOCK_DURATION_MS,
     );
-  }, [clearTimers, paused, schedule]);
+  }, [buddyVisible, clearTimers, paused, schedule]);
 
-  /* =======================================================
-     INITIALIZE
-  ======================================================= */
+  /* =====================================================
+       INITIALIZE
+    ===================================================== */
 
   useEffect(() => {
     if (paused) {
@@ -304,25 +430,50 @@ const useRotomAILauncherCycle = ({ paused = false } = {}) => {
     };
   }, [clearTimers, paused, startCycle]);
 
-  /* =======================================================
-     RESIZE
+  /* =====================================================
+       RESIZE / ORIENTATION
 
-     Keep docked Rotom attached to Buddy.
-  ======================================================= */
+       Reattach Rotom immediately if device orientation
+       or viewport dimensions change.
+    ===================================================== */
 
   useEffect(() => {
     const handleResize = () => {
       if (phase === "docked" || phase === "settling") {
-        setPosition(getDockPosition());
+        setPosition(
+          getDockPosition({
+            buddyVisible,
+          }),
+        );
       }
     };
 
     window.addEventListener("resize", handleResize);
 
+    window.addEventListener("orientationchange", handleResize);
+
     return () => {
       window.removeEventListener("resize", handleResize);
+
+      window.removeEventListener("orientationchange", handleResize);
     };
-  }, [phase]);
+  }, [buddyVisible, phase]);
+
+  /* =====================================================
+       BUDDY VISIBILITY CHANGE
+    ===================================================== */
+
+  useEffect(() => {
+    if (phase !== "docked" && phase !== "settling") {
+      return;
+    }
+
+    setPosition(
+      getDockPosition({
+        buddyVisible,
+      }),
+    );
+  }, [buddyVisible, phase]);
 
   return {
     phase,

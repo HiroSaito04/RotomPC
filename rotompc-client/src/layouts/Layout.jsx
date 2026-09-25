@@ -455,6 +455,7 @@ const Layout = () => {
           <Button
             type="button"
             onClick={openBuddy}
+            data-buddy-launcher="true"
             variant="secondary"
             size="sm"
             aria-label="Open Buddy Pokémon"

@@ -2,9 +2,26 @@
 
 import { useEffect, useRef } from "react";
 
+import { createPortal } from "react-dom";
+
 import { ROTOM_AI_ICON, ROTOM_AI_QUICK_PROMPTS } from "@/constants/rotomAI";
 
 import RotomAIMessage from "./RotomAIMessage";
+
+/* =========================================================
+   CLOSE ICON
+========================================================= */
+
+const CloseIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-5 w-5">
+    <path
+      d="M6 6L18 18M18 6L6 18"
+      stroke="currentColor"
+      strokeWidth="3"
+      strokeLinecap="round"
+    />
+  </svg>
+);
 
 /* =========================================================
    MODAL
@@ -13,7 +30,7 @@ import RotomAIMessage from "./RotomAIMessage";
 const RotomAIChatModal = ({
   messages = [],
 
-  input,
+  input = "",
 
   setInput,
 
@@ -25,15 +42,8 @@ const RotomAIChatModal = ({
 
   sendMessage,
 
-  /*
-   * New persistent-history function.
-   */
   clearHistory,
 
-  /*
-   * Kept temporarily for backward compatibility
-   * with your old RotomAI parent component.
-   */
   clearConversation,
 
   onClose,
@@ -41,14 +51,6 @@ const RotomAIChatModal = ({
   const scrollRef = useRef(null);
 
   const inputRef = useRef(null);
-
-  /* =======================================================
-     CLEAR HANDLER
-
-     Prefer the new MongoDB-backed clearHistory().
-     Fall back to the old clearConversation() while
-     the parent component is being migrated.
-  ======================================================= */
 
   const handleClearHistory = clearHistory || clearConversation || (() => {});
 
@@ -59,9 +61,13 @@ const RotomAIChatModal = ({
   ======================================================= */
 
   useEffect(() => {
-    const previous = document.body.style.overflow;
+    const previousOverflow = document.body.style.overflow;
+
+    const previousOverscroll = document.body.style.overscrollBehavior;
 
     document.body.style.overflow = "hidden";
+
+    document.body.style.overscrollBehavior = "none";
 
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
@@ -72,7 +78,9 @@ const RotomAIChatModal = ({
     window.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      document.body.style.overflow = previous;
+      document.body.style.overflow = previousOverflow;
+
+      document.body.style.overscrollBehavior = previousOverscroll;
 
       window.removeEventListener("keydown", handleKeyDown);
     };
@@ -80,9 +88,6 @@ const RotomAIChatModal = ({
 
   /* =======================================================
      FOCUS
-
-     Wait until MongoDB history has loaded before focusing
-     the input.
   ======================================================= */
 
   useEffect(() => {
@@ -105,7 +110,7 @@ const RotomAIChatModal = ({
 
   useEffect(() => {
     if (historyLoading) {
-      return;
+      return undefined;
     }
 
     const frame = window.requestAnimationFrame(() => {
@@ -144,10 +149,18 @@ const RotomAIChatModal = ({
   };
 
   /* =======================================================
-     UI
+     SSR GUARD
   ======================================================= */
 
-  return (
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  /* =======================================================
+     CONTENT
+  ======================================================= */
+
+  const modal = (
     <div
       className="rotom-ai-modal-backdrop"
       onMouseDown={(event) => {
@@ -201,20 +214,18 @@ const RotomAIChatModal = ({
               aria-label="Close RotomAI"
               className="rotom-ai-modal__close"
             >
-              ×
+              <CloseIcon />
             </button>
           </div>
         </header>
 
         {/* ===============================================
-            ROTOM SCREEN
+            SCREEN
         ================================================ */}
 
         <div className="rotom-ai-screen-shell">
           <div className="rotom-ai-screen">
-            {/* ===========================================
-                STATUS
-            ============================================ */}
+            {/* STATUS */}
 
             <div className="rotom-ai-screen__status">
               <div>
@@ -236,9 +247,7 @@ const RotomAIChatModal = ({
               </span>
             </div>
 
-            {/* ===========================================
-                MESSAGES
-            ============================================ */}
+            {/* MESSAGES */}
 
             <div
               ref={scrollRef}
@@ -247,62 +256,36 @@ const RotomAIChatModal = ({
                 rotom-grid
               "
             >
-              {/* =========================================
-                  HISTORY LOADING
-              ========================================== */}
-
               {historyLoading && (
                 <div
                   className="
                     flex
-                    min-h-[240px]
+                    min-h-[220px]
                     flex-col
                     items-center
                     justify-center
                     gap-4
-                    px-6
+                    px-4
                     text-center
                   "
                 >
                   <div
                     className="
                       relative
-
                       flex
                       h-16
                       w-16
-
                       items-center
                       justify-center
                     "
                   >
                     <div
-                      aria-hidden="true"
                       className="
                         absolute
                         inset-0
-
                         animate-ping
-
                         rounded-full
-
                         bg-yellow-300/25
-                      "
-                    />
-
-                    <div
-                      aria-hidden="true"
-                      className="
-                        absolute
-                        inset-1
-
-                        animate-pulse
-
-                        rounded-full
-
-                        border-2
-                        border-dashed
-                        border-yellow-400
                       "
                     />
 
@@ -312,13 +295,9 @@ const RotomAIChatModal = ({
                       className="
                         relative
                         z-10
-
-                        h-11
-                        w-11
-
+                        h-12
+                        w-12
                         object-contain
-
-                        drop-shadow-md
                       "
                     />
                   </div>
@@ -327,12 +306,10 @@ const RotomAIChatModal = ({
                     <p
                       className="
                         font-mono
-
                         text-[9px]
                         font-black
                         uppercase
                         tracking-[0.14em]
-
                         text-zinc-700
                       "
                     >
@@ -342,13 +319,10 @@ const RotomAIChatModal = ({
                     <p
                       className="
                         mt-2
-
                         max-w-[260px]
-
                         text-xs
                         font-semibold
                         leading-5
-
                         text-zinc-500
                       "
                     >
@@ -359,73 +333,39 @@ const RotomAIChatModal = ({
                 </div>
               )}
 
-              {/* =========================================
-                  SAVED MESSAGES
-              ========================================== */}
-
               {!historyLoading &&
                 messages.map((message) => (
                   <RotomAIMessage key={message.id} message={message} />
                 ))}
 
-              {/* =========================================
-                  EMPTY STATE
-              ========================================== */}
-
               {!historyLoading && messages.length === 0 && !sending && (
                 <div
                   className="
                       flex
-                      min-h-[220px]
+                      min-h-[200px]
                       flex-col
                       items-center
                       justify-center
-
-                      px-6
-
+                      px-4
                       text-center
                     "
                 >
-                  <div
+                  <img
+                    src={ROTOM_AI_ICON}
+                    alt=""
                     className="
-                        mb-4
-
-                        flex
                         h-16
                         w-16
-
-                        items-center
-                        justify-center
-
-                        rounded-2xl
-
-                        border-2
-                        border-zinc-950
-
-                        bg-white
-
-                        shadow-[3px_3px_0_#18181b]
+                        object-contain
                       "
-                  >
-                    <img
-                      src={ROTOM_AI_ICON}
-                      alt=""
-                      className="
-                          h-12
-                          w-12
-
-                          object-contain
-                        "
-                    />
-                  </div>
+                  />
 
                   <p
                     className="
+                        mt-4
                         font-display
-
                         text-lg
                         font-bold
-
                         text-zinc-950
                       "
                   >
@@ -435,42 +375,18 @@ const RotomAIChatModal = ({
                   <p
                     className="
                         mt-2
-
                         max-w-[290px]
-
                         text-xs
                         font-semibold
                         leading-5
-
                         text-zinc-500
                       "
                   >
                     Ask about Pokémon, games, Pokédex data, battle mechanics, or
                     current events.
                   </p>
-
-                  <p
-                    className="
-                        mt-3
-
-                        font-mono
-
-                        text-[7px]
-                        font-black
-                        uppercase
-                        tracking-[0.1em]
-
-                        text-zinc-400
-                      "
-                  >
-                    Conversations are saved to your Trainer account
-                  </p>
                 </div>
               )}
-
-              {/* =========================================
-                  THINKING
-              ========================================== */}
 
               {sending && (
                 <div className="rotom-ai-thinking">
@@ -487,11 +403,7 @@ const RotomAIChatModal = ({
               )}
             </div>
 
-            {/* ===========================================
-                QUICK PROMPTS
-
-                Don't show while saved history is loading.
-            ============================================ */}
+            {/* QUICK PROMPTS */}
 
             {!historyLoading && messages.length <= 2 && (
               <div className="rotom-ai-quick">
@@ -512,15 +424,11 @@ const RotomAIChatModal = ({
               </div>
             )}
 
-            {/* ===========================================
-                ERROR
-            ============================================ */}
+            {/* ERROR */}
 
             {error && <div className="rotom-ai-error">⚡ {error}</div>}
 
-            {/* ===========================================
-                INPUT
-            ============================================ */}
+            {/* INPUT */}
 
             <div className="rotom-ai-composer">
               <div className="rotom-ai-composer__row">
@@ -571,10 +479,6 @@ const RotomAIChatModal = ({
                 </button>
               </div>
 
-              {/* =========================================
-                  FOOTER
-              ========================================== */}
-
               <div className="rotom-ai-composer__footer">
                 <button
                   type="button"
@@ -597,6 +501,14 @@ const RotomAIChatModal = ({
       </section>
     </div>
   );
+
+  /* =======================================================
+     PORTAL
+
+     Critical for viewport correctness.
+  ======================================================= */
+
+  return createPortal(modal, document.body);
 };
 
 export default RotomAIChatModal;

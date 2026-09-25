@@ -1,23 +1,28 @@
-import { ROTOM_AI_ICON } from "@/constants/rotomAI";
+// rotompc-client/src/components/rotom-ai/RotomAILauncher.jsx
 
-import useRotomAILauncherCycle from "@/hooks/useRotomAILauncherCycle";
+import { ROTOM_AI_ICON } from "@/constants/rotomAI";
 
 /* =========================================================
    LAUNCHER
 ========================================================= */
 
-const RotomAILauncher = ({ onOpen, open = false }) => {
-  const {
-    phase,
+const RotomAILauncher = ({
+  phase = "teleporting",
 
-    position,
+  position = {
+    x: 20,
+    y: 120,
+  },
 
-    bubble,
+  teleportKey = 0,
 
-    teleportKey,
-  } = useRotomAILauncherCycle({
-    paused: open,
-  });
+  bubbleText = "",
+
+  buddyVisible = false,
+
+  onOpen,
+}) => {
+  const energized = phase === "teleporting" || phase === "settling";
 
   return (
     <div
@@ -25,6 +30,12 @@ const RotomAILauncher = ({ onOpen, open = false }) => {
         rotom-ai-launcher
 
         rotom-ai-launcher--${phase}
+
+        ${
+          buddyVisible
+            ? "rotom-ai-launcher--with-buddy"
+            : "rotom-ai-launcher--solo"
+        }
       `}
       style={{
         "--rotom-x": `${position.x}px`,
@@ -33,31 +44,35 @@ const RotomAILauncher = ({ onOpen, open = false }) => {
       }}
     >
       {/* =================================================
-          ELECTRIC FIELD
+          ELECTRIC EFFECT
+
+          Only appears while moving.
+
+          Docked Rotom is just the transparent SVG.
       ================================================== */}
 
-      <div className="rotom-ai-launcher__electric" aria-hidden="true">
-        <span className="rotom-ai-launcher__electric-ring rotom-ai-launcher__electric-ring--one" />
+      {energized && (
+        <div className="rotom-ai-launcher__electric" aria-hidden="true">
+          <span className="rotom-ai-launcher__electric-ring rotom-ai-launcher__electric-ring--one" />
 
-        <span className="rotom-ai-launcher__electric-ring rotom-ai-launcher__electric-ring--two" />
+          <span className="rotom-ai-launcher__electric-ring rotom-ai-launcher__electric-ring--two" />
 
-        <span className="rotom-ai-launcher__spark rotom-ai-launcher__spark--one">
-          ⚡
-        </span>
+          <span className="rotom-ai-launcher__spark rotom-ai-launcher__spark--one">
+            ⚡
+          </span>
 
-        <span className="rotom-ai-launcher__spark rotom-ai-launcher__spark--two">
-          ⚡
-        </span>
+          <span className="rotom-ai-launcher__spark rotom-ai-launcher__spark--two">
+            ⚡
+          </span>
 
-        <span className="rotom-ai-launcher__spark rotom-ai-launcher__spark--three">
-          ⚡
-        </span>
-      </div>
+          <span className="rotom-ai-launcher__spark rotom-ai-launcher__spark--three">
+            ⚡
+          </span>
+        </div>
+      )}
 
       {/* =================================================
           TELEPORT FLASH
-
-          Re-mounts every jump.
       ================================================== */}
 
       {phase === "teleporting" && (
@@ -69,25 +84,34 @@ const RotomAILauncher = ({ onOpen, open = false }) => {
       )}
 
       {/* =================================================
-          CHAT BUBBLE
+          BUBBLE
       ================================================== */}
 
-      {phase === "docked" && bubble && (
-        <div className="rotom-ai-launcher__bubble">{bubble}</div>
+      {phase === "docked" && bubbleText && (
+        <div className="rotom-ai-launcher__bubble">{bubbleText}</div>
       )}
 
       {/* =================================================
           BUTTON
+
+          Transparent.
+          SVG only.
       ================================================== */}
 
       <button
         type="button"
         onClick={onOpen}
         aria-label="Open RotomAI"
+        title="Open RotomAI"
         className="rotom-ai-launcher__button"
       >
         <span className="rotom-ai-launcher__icon-wrap">
-          <img src={ROTOM_AI_ICON} alt="" className="rotom-ai-launcher__icon" />
+          <img
+            src={ROTOM_AI_ICON}
+            alt=""
+            draggable={false}
+            className="rotom-ai-launcher__icon"
+          />
         </span>
       </button>
     </div>
