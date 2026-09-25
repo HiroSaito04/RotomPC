@@ -19,6 +19,20 @@ export const ROTOM_AI_DOCK_DURATION = 20000;
 export const ROTOM_AI_BUBBLE_INTERVAL = 3500;
 
 /* =========================================================
+   ROTOM AI DOCK MESSAGES
+========================================================= */
+
+export const ROTOM_AI_DOCK_MESSAGES = [
+  "Bzzzt! RotomAI online!",
+  "Need help, Trainer?",
+  "Ask me anything!",
+  "Rotom research ready!",
+  "Need a Pokédex scan?",
+  "What's our next mission?",
+  "I'm charged up!",
+];
+
+/* =========================================================
    QUICK PROMPTS
 ========================================================= */
 

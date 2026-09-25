@@ -6,22 +6,68 @@ const { verifyToken } = require("../middlewares/authMiddleware");
 
 const {
   getBuddy,
+
   selectBuddy,
+
   pet,
+
   play,
+
   feed,
 } = require("../controllers/buddyController");
 
 const router = express.Router();
 
-router.get("/", verifyToken, getBuddy);
+/* =========================================================
+   STATE
+========================================================= */
 
-router.patch("/pokemon", verifyToken, selectBuddy);
+router.get(
+  "/",
 
-router.post("/pet", verifyToken, pet);
+  verifyToken,
 
-router.post("/play", verifyToken, play);
+  getBuddy,
+);
 
-router.post("/feed", verifyToken, feed);
+/* =========================================================
+   BUDDY POKÉMON
+========================================================= */
+
+router.patch(
+  "/pokemon",
+
+  verifyToken,
+
+  selectBuddy,
+);
+
+/* =========================================================
+   INTERACTIONS
+========================================================= */
+
+router.post(
+  "/pet",
+
+  verifyToken,
+
+  pet,
+);
+
+router.post(
+  "/play",
+
+  verifyToken,
+
+  play,
+);
+
+router.post(
+  "/feed",
+
+  verifyToken,
+
+  feed,
+);
 
 module.exports = router;

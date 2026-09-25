@@ -1,174 +1,319 @@
-// rotompc-client/src/hooks/useRotomAILauncherCycle.js
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { useEffect, useRef, useState } from "react";
-
-import {
-  ROTOM_AI_BUBBLE_INTERVAL,
-  ROTOM_AI_DOCK_DURATION,
-  ROTOM_AI_TELEPORT_INTERVAL,
-  ROTOM_AI_TELEPORTS_PER_CYCLE,
-} from "@/constants/rotomAI";
-
-import { getRandomRotomBubble, getSafeRotomPosition } from "@/utils/rotomAI";
+import { ROTOM_AI_DOCK_MESSAGES } from "@/constants/rotomAI";
 
 /* =========================================================
-   PHASES
+   TIMING
 ========================================================= */
 
-export const ROTOM_PHASE = {
-  TELEPORT: "teleport",
+const TELEPORT_COUNT = 5;
 
-  DOCKED: "docked",
+const TELEPORT_INTERVAL_MS = 1000;
+
+const SETTLE_DELAY_MS = 220;
+
+const SETTLE_DURATION_MS = 720;
+
+const DOCK_DURATION_MS = 20000;
+
+/* =========================================================
+   SAFE AREA
+========================================================= */
+
+const EDGE_PADDING = 22;
+
+const LAUNCHER_SIZE = 72;
+
+/* =========================================================
+   RANDOM POSITION
+========================================================= */
+
+const getRandomPosition = () => {
+  const width = window.innerWidth;
+
+  const height = window.innerHeight;
+
+  const maxX = Math.max(EDGE_PADDING, width - LAUNCHER_SIZE - EDGE_PADDING);
+
+  const maxY = Math.max(EDGE_PADDING, height - LAUNCHER_SIZE - EDGE_PADDING);
+
+  return {
+    x: EDGE_PADDING + Math.random() * Math.max(1, maxX - EDGE_PADDING),
+
+    y: EDGE_PADDING + Math.random() * Math.max(1, maxY - EDGE_PADDING),
+  };
+};
+
+/* =========================================================
+   DOCK POSITION
+========================================================= */
+
+const getDockPosition = () => {
+  const buddy = document.querySelector('[data-buddy-launcher="true"]');
+
+  /*
+   * Fallback if Buddy is temporarily
+   * unavailable.
+   */
+
+  if (!buddy) {
+    return {
+      x: Math.max(18, window.innerWidth - 178),
+
+      y: Math.max(18, window.innerHeight - 105),
+    };
+  }
+
+  const rect = buddy.getBoundingClientRect();
+
+  const isMobile = window.innerWidth < 640;
+
+  /* -----------------------------------------------------
+     MOBILE
+
+     Sit centered above Buddy.
+  ----------------------------------------------------- */
+
+  if (isMobile) {
+    return {
+      x: rect.left + rect.width / 2 - LAUNCHER_SIZE / 2,
+
+      y: rect.top - LAUNCHER_SIZE - 12,
+    };
+  }
+
+  /* -----------------------------------------------------
+     DESKTOP
+
+     Sit slightly left of Buddy.
+  ----------------------------------------------------- */
+
+  return {
+    x: rect.left - LAUNCHER_SIZE - 26,
+
+    y: rect.top + rect.height / 2 - LAUNCHER_SIZE / 2,
+  };
+};
+
+/* =========================================================
+   RANDOM BUBBLE
+========================================================= */
+
+const getRandomBubble = () => {
+  if (
+    !Array.isArray(ROTOM_AI_DOCK_MESSAGES) ||
+    ROTOM_AI_DOCK_MESSAGES.length === 0
+  ) {
+    return "";
+  }
+
+  return ROTOM_AI_DOCK_MESSAGES[
+    Math.floor(Math.random() * ROTOM_AI_DOCK_MESSAGES.length)
+  ];
 };
 
 /* =========================================================
    HOOK
 ========================================================= */
 
-const useRotomAILauncherCycle = ({ isOpen }) => {
-  const [phase, setPhase] = useState(ROTOM_PHASE.TELEPORT);
+const useRotomAILauncherCycle = ({ paused = false } = {}) => {
+  const [phase, setPhase] = useState("teleporting");
 
-  const [position, setPosition] = useState(() => getSafeRotomPosition());
+  const [position, setPosition] = useState(() => ({
+    x: 28,
+    y: 120,
+  }));
 
-  const [teleporting, setTeleporting] = useState(false);
+  const [bubble, setBubble] = useState("");
 
   const [teleportKey, setTeleportKey] = useState(0);
 
-  const [bubbleText, setBubbleText] = useState(() => getRandomRotomBubble());
+  const timersRef = useRef([]);
 
-  const teleportCountRef = useRef(0);
+  const cycleRef = useRef(0);
 
-  /* =====================================================
-       TELEPORT / DOCK LOOP
-    ===================================================== */
+  /* =======================================================
+     CLEAR TIMERS
+  ======================================================= */
 
-  useEffect(() => {
-    if (isOpen) {
-      return undefined;
-    }
+  const clearTimers = useCallback(() => {
+    timersRef.current.forEach((timer) => {
+      window.clearTimeout(timer);
+    });
 
-    const reduceMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
+    timersRef.current = [];
+  }, []);
+
+  /* =======================================================
+     TIMER HELPER
+  ======================================================= */
+
+  const schedule = useCallback((callback, delay) => {
+    const timer = window.setTimeout(callback, delay);
+
+    timersRef.current.push(timer);
+
+    return timer;
+  }, []);
+
+  /* =======================================================
+     START CYCLE
+  ======================================================= */
+
+  const startCycle = useCallback(() => {
+    clearTimers();
+
+    const cycleId = cycleRef.current + 1;
+
+    cycleRef.current = cycleId;
+
+    setBubble("");
+
+    setPhase("teleporting");
 
     /*
-     * Reduced motion users simply
-     * get docked Rotom.
+     * Start somewhere random.
      */
-    if (reduceMotion) {
-      if (phase !== ROTOM_PHASE.DOCKED) {
-        setPhase(ROTOM_PHASE.DOCKED);
-      }
 
-      setTeleporting(false);
+    setPosition(getRandomPosition());
+
+    setTeleportKey((current) => current + 1);
+
+    /* ---------------------------------------------------
+         TELEPORTS
+      --------------------------------------------------- */
+
+    for (let index = 1; index < TELEPORT_COUNT; index += 1) {
+      schedule(
+        () => {
+          if (cycleRef.current !== cycleId || paused) {
+            return;
+          }
+
+          setPosition(getRandomPosition());
+
+          setTeleportKey((current) => current + 1);
+        },
+
+        index * TELEPORT_INTERVAL_MS,
+      );
+    }
+
+    /* ---------------------------------------------------
+         FINAL TELEPORT FINISH
+
+         Do NOT immediately snap to dock.
+         First enter "settling".
+      --------------------------------------------------- */
+
+    const teleportEnd = TELEPORT_COUNT * TELEPORT_INTERVAL_MS;
+
+    schedule(
+      () => {
+        if (cycleRef.current !== cycleId || paused) {
+          return;
+        }
+
+        setPhase("settling");
+      },
+
+      teleportEnd - TELEPORT_INTERVAL_MS + SETTLE_DELAY_MS,
+    );
+
+    /* ---------------------------------------------------
+         GLIDE TO BUDDY
+
+         Keep current position during the phase change.
+         Then update position on the next frame so CSS
+         can animate from the current teleport location
+         to the dock location.
+      --------------------------------------------------- */
+
+    schedule(
+      () => {
+        if (cycleRef.current !== cycleId || paused) {
+          return;
+        }
+
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            setPosition(getDockPosition());
+          });
+        });
+      },
+
+      teleportEnd - TELEPORT_INTERVAL_MS + SETTLE_DELAY_MS + 32,
+    );
+
+    /* ---------------------------------------------------
+         DOCKED
+      --------------------------------------------------- */
+
+    schedule(
+      () => {
+        if (cycleRef.current !== cycleId || paused) {
+          return;
+        }
+
+        setPhase("docked");
+
+        setBubble(getRandomBubble());
+      },
+
+      teleportEnd - TELEPORT_INTERVAL_MS + SETTLE_DELAY_MS + SETTLE_DURATION_MS,
+    );
+
+    /* ---------------------------------------------------
+         RESTART
+      --------------------------------------------------- */
+
+    schedule(
+      () => {
+        if (cycleRef.current !== cycleId || paused) {
+          return;
+        }
+
+        startCycle();
+      },
+
+      teleportEnd -
+        TELEPORT_INTERVAL_MS +
+        SETTLE_DELAY_MS +
+        SETTLE_DURATION_MS +
+        DOCK_DURATION_MS,
+    );
+  }, [clearTimers, paused, schedule]);
+
+  /* =======================================================
+     INITIALIZE
+  ======================================================= */
+
+  useEffect(() => {
+    if (paused) {
+      clearTimers();
 
       return undefined;
     }
 
-    /* ---------------------------------------------------
-         TELEPORT PHASE
-      --------------------------------------------------- */
-
-    if (phase === ROTOM_PHASE.TELEPORT) {
-      teleportCountRef.current = 0;
-
-      const timers = new Set();
-
-      let intervalId = null;
-
-      const schedule = (callback, delay) => {
-        const id = window.setTimeout(() => {
-          timers.delete(id);
-
-          callback();
-        }, delay);
-
-        timers.add(id);
-
-        return id;
-      };
-
-      const teleport = () => {
-        teleportCountRef.current += 1;
-
-        const finalTeleport =
-          teleportCountRef.current >= ROTOM_AI_TELEPORTS_PER_CYCLE;
-
-        setTeleporting(true);
-
-        /*
-         * Collapse first, then
-         * appear elsewhere.
-         */
-        schedule(() => {
-          setPosition(getSafeRotomPosition());
-
-          setTeleportKey((current) => current + 1);
-        }, 125);
-
-        schedule(() => {
-          setTeleporting(false);
-
-          /*
-           * After teleport #5
-           * immediately dock.
-           */
-          if (finalTeleport) {
-            setPhase(ROTOM_PHASE.DOCKED);
-          }
-        }, 360);
-
-        if (finalTeleport && intervalId) {
-          window.clearInterval(intervalId);
-        }
-      };
-
-      intervalId = window.setInterval(teleport, ROTOM_AI_TELEPORT_INTERVAL);
-
-      return () => {
-        if (intervalId) {
-          window.clearInterval(intervalId);
-        }
-
-        timers.forEach((timer) => window.clearTimeout(timer));
-
-        timers.clear();
-      };
-    }
-
-    /* ---------------------------------------------------
-         DOCK PHASE
-      --------------------------------------------------- */
-
-    setTeleporting(false);
-
-    setBubbleText((previous) => getRandomRotomBubble(previous));
-
-    const bubbleInterval = window.setInterval(() => {
-      setBubbleText((previous) => getRandomRotomBubble(previous));
-    }, ROTOM_AI_BUBBLE_INTERVAL);
-
-    const dockTimer = window.setTimeout(() => {
-      teleportCountRef.current = 0;
-
-      setPhase(ROTOM_PHASE.TELEPORT);
-    }, ROTOM_AI_DOCK_DURATION);
+    startCycle();
 
     return () => {
-      window.clearInterval(bubbleInterval);
+      cycleRef.current += 1;
 
-      window.clearTimeout(dockTimer);
+      clearTimers();
     };
-  }, [phase, isOpen]);
+  }, [clearTimers, paused, startCycle]);
 
-  /* =====================================================
-       RESIZE
-    ===================================================== */
+  /* =======================================================
+     RESIZE
+
+     Keep docked Rotom attached to Buddy.
+  ======================================================= */
 
   useEffect(() => {
     const handleResize = () => {
-      if (phase === ROTOM_PHASE.TELEPORT) {
-        setPosition(getSafeRotomPosition());
+      if (phase === "docked" || phase === "settling") {
+        setPosition(getDockPosition());
       }
     };
 
@@ -181,10 +326,18 @@ const useRotomAILauncherCycle = ({ isOpen }) => {
 
   return {
     phase,
+
     position,
-    teleporting,
+
+    bubble,
+
     teleportKey,
-    bubbleText,
+
+    isTeleporting: phase === "teleporting",
+
+    isSettling: phase === "settling",
+
+    isDocked: phase === "docked",
   };
 };
 

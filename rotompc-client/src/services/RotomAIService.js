@@ -5,32 +5,14 @@ import axios from "axios";
 import apiConfig from "@/config/api";
 
 /* =========================================================
-   API ROOT
+   API
 ========================================================= */
 
-/*
- * Supports either:
- *
- * HOST=http://localhost:8000
- *
- * or:
- *
- * HOST=http://localhost:8000/api
- *
- * without ever producing:
- *
- * /api/api/...
- */
-
-const RAW_HOST = String(apiConfig.HOST || "http://localhost:8000")
+const RAW_HOST = String(apiConfig.HOST || "http://localhost:8000/api")
   .trim()
   .replace(/\/+$/, "");
 
 const API_ROOT = RAW_HOST.endsWith("/api") ? RAW_HOST : `${RAW_HOST}/api`;
-
-/* =========================================================
-   AXIOS INSTANCE
-========================================================= */
 
 const API = axios.create({
   baseURL: `${API_ROOT}/rotom-ai`,
@@ -43,34 +25,40 @@ const API = axios.create({
 });
 
 /* =========================================================
-   DEBUG
-
-   Useful while developing.
-
-   You can remove this later.
+   AUTH
 ========================================================= */
 
-if (import.meta.env.DEV) {
-  API.interceptors.request.use((config) => {
-    const baseURL = config.baseURL || "";
+API.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token");
 
-    const url = config.url || "";
-
-    console.log(
-      "[RotomAI request]",
-      config.method?.toUpperCase(),
-      `${baseURL}${url}`,
-    );
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
 
     return config;
-  });
-}
+  },
+
+  (error) => Promise.reject(error),
+);
+
+/* =========================================================
+   STATUS
+========================================================= */
+
+export const getRotomAIStatus = () => API.get("/status");
+
+/* =========================================================
+   HISTORY
+========================================================= */
+
+export const getRotomAIHistory = () => API.get("/history");
 
 /* =========================================================
    CHAT
 ========================================================= */
 
-export const sendRotomMessage = async ({ message, history = [] }) => {
+export const sendRotomMessage = ({ message }) => {
   const cleanMessage = String(message || "").trim();
 
   if (!cleanMessage) {
@@ -81,27 +69,33 @@ export const sendRotomMessage = async ({ message, history = [] }) => {
     throw new Error("Message cannot exceed 4,000 characters.");
   }
 
+  /*
+   * IMPORTANT:
+   *
+   * We no longer send browser-owned
+   * history to Gemini.
+   *
+   * The server loads authenticated
+   * history from MongoDB.
+   */
+
   return API.post(
     "/chat",
 
     {
       message: cleanMessage,
-
-      history: Array.isArray(history) ? history : [],
     },
   );
 };
 
 /* =========================================================
-   STATUS
+   CLEAR HISTORY
 ========================================================= */
 
-export const getRotomAIStatus = async () => {
-  return API.get("/status");
-};
+export const clearRotomAIHistory = () => API.delete("/history");
 
 /* =========================================================
-   OPTIONAL DEBUG EXPORT
+   EXPORT
 ========================================================= */
 
 export const ROTOM_AI_API_URL = `${API_ROOT}/rotom-ai`;

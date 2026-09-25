@@ -53,9 +53,10 @@ const ensureBuddyState = async (userId) => {
 
   if (state) {
     /*
-     * Protect older rows if fields
+     * Protect older MongoDB rows if fields
      * were added after deployment.
      */
+
     let changed = false;
 
     if (state.berries === undefined || state.berries === null) {
@@ -72,11 +73,25 @@ const ensureBuddyState = async (userId) => {
 
     if (state.affection === undefined || state.affection === null) {
       state.affection = 0;
+
       changed = true;
     }
 
     if (state.petCount === undefined || state.petCount === null) {
       state.petCount = 0;
+
+      changed = true;
+    }
+
+    if (state.totalPlays === undefined || state.totalPlays === null) {
+      state.totalPlays = 0;
+
+      changed = true;
+    }
+
+    if (state.totalBerriesFed === undefined || state.totalBerriesFed === null) {
+      state.totalBerriesFed = 0;
+
       changed = true;
     }
 
@@ -101,8 +116,9 @@ const ensureBuddyState = async (userId) => {
    * Migration bridge:
    *
    * Existing Favorite Pokémon becomes
-   * the initial Buddy automatically.
+   * the Trainer's initial Buddy.
    */
+
   const legacyPokemon = user.favoritePokemon?.id
     ? {
         id: Number(user.favoritePokemon.id),
@@ -113,6 +129,7 @@ const ensureBuddyState = async (userId) => {
       }
     : {
         id: null,
+
         name: "",
       };
 
@@ -123,18 +140,31 @@ const ensureBuddyState = async (userId) => {
       pokemon: legacyPokemon,
 
       affection: 0,
+
       petCount: 0,
 
       energy: BUDDY_MAX_ENERGY,
 
       berries: BUDDY_STARTING_BERRIES,
+
+      totalPlays: 0,
+
+      totalBerriesFed: 0,
+
+      restingUntil: null,
+
+      lastInteractionAt: null,
     });
   } catch (error) {
     /*
-     * Two concurrent first requests
+     * Two concurrent initial requests
      * can race against the unique user
-     * index. Just load the winner.
+     * index.
+     *
+     * Load whichever request created
+     * the state first.
      */
+
     if (error?.code === 11000) {
       state = await BuddyState.findOne({
         user: user._id,
@@ -142,6 +172,10 @@ const ensureBuddyState = async (userId) => {
     } else {
       throw error;
     }
+  }
+
+  if (!state) {
+    throw new BuddyError("Unable to initialize Buddy.", 500);
   }
 
   return state;
@@ -156,15 +190,21 @@ const refreshRestState = async (state) => {
     return state;
   }
 
-  if (state.restingUntil && state.restingUntil.getTime() <= Date.now()) {
+  if (
+    state.restingUntil &&
+    new Date(state.restingUntil).getTime() <= Date.now()
+  ) {
     /*
-     * Buddy wakes after exactly
-     * two server-side minutes.
+     * The server controls recovery.
      *
-     * It wakes at 10 energy so
-     * three berries are required
-     * to reach 100 again.
+     * After the 2-minute rest,
+     * Buddy wakes with 10 energy.
+     *
+     * Current berry gain:
+     *
+     * 10 + (6 × 15) = 100
      */
+
     state.restingUntil = null;
 
     state.energy = BUDDY_WAKE_ENERGY;
@@ -174,6 +214,10 @@ const refreshRestState = async (state) => {
 
   return state;
 };
+
+/* =========================================================
+   START REST
+========================================================= */
 
 const startRestIfNeeded = (state) => {
   if (state.energy > 0) {
@@ -185,12 +229,27 @@ const startRestIfNeeded = (state) => {
   state.restingUntil = new Date(Date.now() + BUDDY_REST_MS);
 };
 
-const requireAwakeBuddy = (state) => {
+/* =========================================================
+   REQUIRE BUDDY
+========================================================= */
+
+const requireBuddyPokemon = (state) => {
   if (!hasPokemon(state)) {
     throw new BuddyError("Choose a Buddy Pokémon first.", 409);
   }
+};
 
-  if (state.restingUntil && state.restingUntil.getTime() > Date.now()) {
+/* =========================================================
+   REQUIRE AWAKE
+========================================================= */
+
+const requireAwakeBuddy = (state) => {
+  requireBuddyPokemon(state);
+
+  if (
+    state.restingUntil &&
+    new Date(state.restingUntil).getTime() > Date.now()
+  ) {
     throw new BuddyError("Your Buddy is resting.", 423);
   }
 };
@@ -213,13 +272,35 @@ const serializeBuddyState = (state) => {
       name: state.pokemon?.name || "",
     },
 
-    affection: clamp(state.affection || 0, 0, BUDDY_MAX_AFFECTION),
+    affection: clamp(
+      state.affection || 0,
 
-    petCount: clamp(state.petCount || 0, 0, 100),
+      0,
 
-    energy: clamp(state.energy || 0, 0, BUDDY_MAX_ENERGY),
+      BUDDY_MAX_AFFECTION,
+    ),
 
-    berries: Math.max(0, state.berries || 0),
+    petCount: clamp(
+      state.petCount || 0,
+
+      0,
+
+      BUDDY_MAX_AFFECTION,
+    ),
+
+    energy: clamp(
+      state.energy || 0,
+
+      0,
+
+      BUDDY_MAX_ENERGY,
+    ),
+
+    berries: Math.max(
+      0,
+
+      state.berries || 0,
+    ),
 
     totalPlays: state.totalPlays || 0,
 
@@ -229,9 +310,45 @@ const serializeBuddyState = (state) => {
 
     restingUntil: isResting ? restingUntil.toISOString() : null,
 
-    restRemainingMs: isResting ? Math.max(0, restingUntil.getTime() - now) : 0,
+    restRemainingMs: isResting
+      ? Math.max(
+          0,
+
+          restingUntil.getTime() - now,
+        )
+      : 0,
 
     lastInteractionAt: state.lastInteractionAt || null,
+
+    /*
+     * Let the frontend display the
+     * exact server-authoritative rules.
+     *
+     * The client no longer needs to
+     * duplicate 5 / 10 / 15.
+     */
+
+    rules: {
+      maxEnergy: BUDDY_MAX_ENERGY,
+
+      maxAffection: BUDDY_MAX_AFFECTION,
+
+      startingBerries: BUDDY_STARTING_BERRIES,
+
+      petEnergyCost: BUDDY_PET_ENERGY_COST,
+
+      playEnergyCost: BUDDY_PLAY_ENERGY_COST,
+
+      berryEnergyGain: BUDDY_BERRY_ENERGY_GAIN,
+
+      wakeEnergy: BUDDY_WAKE_ENERGY,
+
+      restMs: BUDDY_REST_MS,
+
+      rewards: {
+        ...POKESOCIAL_BERRY_REWARDS,
+      },
+    },
   };
 };
 
@@ -252,24 +369,41 @@ const getBuddyState = async (userId) => {
 ========================================================= */
 
 const setBuddyPokemon = async (userId, pokemon) => {
-  let state = await getBuddyState(userId);
+  const state = await getBuddyState(userId);
+
+  /* -----------------------------------------------------
+       CLEAR
+    ----------------------------------------------------- */
 
   if (pokemon === null || pokemon === undefined) {
     state.pokemon = {
       id: null,
+
       name: "",
     };
 
     state.affection = 0;
+
     state.petCount = 0;
+
     state.energy = BUDDY_MAX_ENERGY;
 
     state.restingUntil = null;
+
+    state.totalPlays = 0;
+
+    state.totalBerriesFed = 0;
+
+    state.lastInteractionAt = null;
 
     await state.save();
 
     return state;
   }
+
+  /* -----------------------------------------------------
+       VALIDATE
+    ----------------------------------------------------- */
 
   const pokemonId = Number(pokemon.id);
 
@@ -285,10 +419,10 @@ const setBuddyPokemon = async (userId, pokemon) => {
     throw new BuddyError("Buddy Pokémon name is invalid.");
   }
 
-  /*
-   * Do not reset stats if saving
-   * the exact same buddy.
-   */
+  /* -----------------------------------------------------
+       SAME BUDDY
+    ----------------------------------------------------- */
+
   const sameBuddy =
     Number(state.pokemon?.id) === pokemonId &&
     String(state.pokemon?.name || "") === pokemonName;
@@ -297,6 +431,10 @@ const setBuddyPokemon = async (userId, pokemon) => {
     return state;
   }
 
+  /* -----------------------------------------------------
+       NEW BUDDY
+    ----------------------------------------------------- */
+
   state.pokemon = {
     id: pokemonId,
 
@@ -304,12 +442,16 @@ const setBuddyPokemon = async (userId, pokemon) => {
   };
 
   /*
-   * New buddy = new relationship.
+   * A new Buddy starts a new
+   * relationship.
    *
-   * Berry inventory belongs to the
-   * trainer and is intentionally kept.
+   * Berry inventory belongs to
+   * the Trainer, so berries are
+   * intentionally NOT reset.
    */
+
   state.affection = 0;
+
   state.petCount = 0;
 
   state.energy = BUDDY_MAX_ENERGY;
@@ -317,6 +459,7 @@ const setBuddyPokemon = async (userId, pokemon) => {
   state.restingUntil = null;
 
   state.totalPlays = 0;
+
   state.totalBerriesFed = 0;
 
   state.lastInteractionAt = null;
@@ -328,27 +471,34 @@ const setBuddyPokemon = async (userId, pokemon) => {
 
 /* =========================================================
    PET
+
+   +1 affection
+   -5 energy
 ========================================================= */
 
 const petBuddy = async (userId) => {
-  let state = await getBuddyState(userId);
+  const state = await getBuddyState(userId);
 
   requireAwakeBuddy(state);
 
   /*
-   * Exactly one affection point
-   * for one successful pet.
+   * One successful pet:
    *
-   * Therefore:
-   * 100 pets = 100 affection.
+   * +1 affection
+   * -5 energy
    */
+
   if (state.petCount < BUDDY_MAX_AFFECTION) {
     state.petCount += 1;
 
     state.affection = state.petCount;
   }
 
-  state.energy = Math.max(0, state.energy - BUDDY_PET_ENERGY_COST);
+  state.energy = Math.max(
+    0,
+
+    state.energy - BUDDY_PET_ENERGY_COST,
+  );
 
   state.lastInteractionAt = new Date();
 
@@ -361,14 +511,20 @@ const petBuddy = async (userId) => {
 
 /* =========================================================
    PLAY
+
+   -10 energy
 ========================================================= */
 
 const playWithBuddy = async (userId) => {
-  let state = await getBuddyState(userId);
+  const state = await getBuddyState(userId);
 
   requireAwakeBuddy(state);
 
-  state.energy = Math.max(0, state.energy - BUDDY_PLAY_ENERGY_COST);
+  state.energy = Math.max(
+    0,
+
+    state.energy - BUDDY_PLAY_ENERGY_COST,
+  );
 
   state.totalPlays += 1;
 
@@ -383,10 +539,25 @@ const playWithBuddy = async (userId) => {
 
 /* =========================================================
    FEED
+
+   +15 energy
+
+   IMPORTANT:
+   Feeding has NO pet-count requirement
+   and NO play-count requirement.
+
+   Trainer can feed immediately after
+   selecting a Buddy.
+
+   Buddy must simply:
+   - exist
+   - be awake
+   - have at least one berry
+   - not already have full energy
 ========================================================= */
 
 const feedBuddy = async (userId, berryName) => {
-  let state = await getBuddyState(userId);
+  const state = await getBuddyState(userId);
 
   requireAwakeBuddy(state);
 
@@ -410,6 +581,7 @@ const feedBuddy = async (userId, berryName) => {
 
   state.energy = Math.min(
     BUDDY_MAX_ENERGY,
+
     state.energy + BUDDY_BERRY_ENERGY_GAIN,
   );
 
@@ -423,7 +595,7 @@ const feedBuddy = async (userId, berryName) => {
 };
 
 /* =========================================================
-   POKESOCIAL REWARDS
+   POKÉSOCIAL REWARDS
 ========================================================= */
 
 const awardBerriesOnce = async (userId, action, sourceId) => {
@@ -457,16 +629,17 @@ const awardBerriesOnce = async (userId, action, sourceId) => {
     /*
      * Reward already earned.
      *
-     * Important:
-     * unlike/re-like and
+     * Unlike/re-like and
      * unfollow/re-follow cannot
-     * generate another reward.
+     * generate the same reward again.
      */
+
     if (error?.code === 11000) {
       const state = await getBuddyState(userId);
 
       return {
         awarded: false,
+
         amount: 0,
 
         berries: state.berries,
@@ -493,6 +666,10 @@ const awardBerriesOnce = async (userId, action, sourceId) => {
       },
     );
 
+    if (!state) {
+      throw new BuddyError("Buddy inventory could not be updated.", 500);
+    }
+
     return {
       awarded: true,
 
@@ -502,10 +679,13 @@ const awardBerriesOnce = async (userId, action, sourceId) => {
     };
   } catch (error) {
     /*
-     * If inventory update failed,
-     * remove the ledger row so the
-     * reward can safely be retried.
+     * Inventory update failed.
+     *
+     * Remove the reward ledger entry
+     * so the operation can safely be
+     * retried.
      */
+
     await BuddyReward.deleteOne({
       _id: reward._id,
     });
@@ -514,17 +694,25 @@ const awardBerriesOnce = async (userId, action, sourceId) => {
   }
 };
 
+/* =========================================================
+   EXPORTS
+========================================================= */
+
 module.exports = {
   BuddyError,
 
   ensureBuddyState,
+
   getBuddyState,
 
   serializeBuddyState,
 
   setBuddyPokemon,
+
   petBuddy,
+
   playWithBuddy,
+
   feedBuddy,
 
   awardBerriesOnce,

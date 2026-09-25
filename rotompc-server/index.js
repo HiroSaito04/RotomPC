@@ -47,26 +47,12 @@ const corsOptions = {
 
     console.warn("Blocked CORS origin:", origin);
 
-    return callback(
-      new Error("Origin is not allowed by CORS."),
-    );
+    return callback(new Error("Origin is not allowed by CORS."));
   },
 
-  methods: [
-    "GET",
-    "HEAD",
-    "POST",
-    "PUT",
-    "PATCH",
-    "DELETE",
-    "OPTIONS",
-  ],
+  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 
-  allowedHeaders: [
-    "Content-Type",
-    "Authorization",
-    "X-Requested-With",
-  ],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
 
   optionsSuccessStatus: 204,
 };

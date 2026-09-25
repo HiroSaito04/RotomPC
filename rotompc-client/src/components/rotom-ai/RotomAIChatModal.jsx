@@ -11,18 +11,29 @@ import RotomAIMessage from "./RotomAIMessage";
 ========================================================= */
 
 const RotomAIChatModal = ({
-  messages,
+  messages = [],
 
   input,
 
   setInput,
 
-  sending,
+  sending = false,
+
+  historyLoading = false,
 
   error,
 
   sendMessage,
 
+  /*
+   * New persistent-history function.
+   */
+  clearHistory,
+
+  /*
+   * Kept temporarily for backward compatibility
+   * with your old RotomAI parent component.
+   */
   clearConversation,
 
   onClose,
@@ -30,6 +41,18 @@ const RotomAIChatModal = ({
   const scrollRef = useRef(null);
 
   const inputRef = useRef(null);
+
+  /* =======================================================
+     CLEAR HANDLER
+
+     Prefer the new MongoDB-backed clearHistory().
+     Fall back to the old clearConversation() while
+     the parent component is being migrated.
+  ======================================================= */
+
+  const handleClearHistory = clearHistory || clearConversation || (() => {});
+
+  const busy = sending || historyLoading;
 
   /* =======================================================
      BODY LOCK / ESC
@@ -57,27 +80,72 @@ const RotomAIChatModal = ({
 
   /* =======================================================
      FOCUS
+
+     Wait until MongoDB history has loaded before focusing
+     the input.
   ======================================================= */
 
   useEffect(() => {
+    if (historyLoading) {
+      return undefined;
+    }
+
     const timer = window.setTimeout(() => {
       inputRef.current?.focus();
-    }, 220);
+    }, 180);
 
-    return () => window.clearTimeout(timer);
-  }, []);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [historyLoading]);
 
   /* =======================================================
      AUTOSCROLL
   ======================================================= */
 
   useEffect(() => {
-    requestAnimationFrame(() => {
+    if (historyLoading) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
       if (scrollRef.current) {
         scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
       }
     });
-  }, [messages, sending]);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [messages, sending, historyLoading]);
+
+  /* =======================================================
+     CLEAR
+  ======================================================= */
+
+  const handleClear = async () => {
+    if (busy) {
+      return;
+    }
+
+    await handleClearHistory();
+  };
+
+  /* =======================================================
+     SEND
+  ======================================================= */
+
+  const handleSend = () => {
+    if (busy || !input.trim()) {
+      return;
+    }
+
+    sendMessage();
+  };
+
+  /* =======================================================
+     UI
+  ======================================================= */
 
   return (
     <div
@@ -120,10 +188,11 @@ const RotomAIChatModal = ({
           <div className="rotom-ai-modal__header-actions">
             <button
               type="button"
-              onClick={clearConversation}
+              onClick={handleClear}
+              disabled={busy || messages.length === 0}
               className="rotom-ai-modal__clear"
             >
-              Clear
+              {historyLoading ? "Syncing" : "Clear"}
             </button>
 
             <button
@@ -143,17 +212,27 @@ const RotomAIChatModal = ({
 
         <div className="rotom-ai-screen-shell">
           <div className="rotom-ai-screen">
-            {/* STATUS */}
+            {/* ===========================================
+                STATUS
+            ============================================ */}
 
             <div className="rotom-ai-screen__status">
               <div>
                 <span className="rotom-ai-screen__status-dot" />
 
-                <span>Research Core Ready</span>
+                <span>
+                  {historyLoading
+                    ? "Syncing Memory"
+                    : sending
+                      ? "Researching"
+                      : "Research Core Ready"}
+                </span>
               </div>
 
               <span className="rotom-ai-screen__status-right">
-                Pokédex + Live Events
+                {historyLoading
+                  ? "Trainer Memory Link"
+                  : "Pokédex + Live Events"}
               </span>
             </div>
 
@@ -163,11 +242,235 @@ const RotomAIChatModal = ({
 
             <div
               ref={scrollRef}
-              className="rotom-ai-screen__messages rotom-grid"
+              className="
+                rotom-ai-screen__messages
+                rotom-grid
+              "
             >
-              {messages.map((message) => (
-                <RotomAIMessage key={message.id} message={message} />
-              ))}
+              {/* =========================================
+                  HISTORY LOADING
+              ========================================== */}
+
+              {historyLoading && (
+                <div
+                  className="
+                    flex
+                    min-h-[240px]
+                    flex-col
+                    items-center
+                    justify-center
+                    gap-4
+                    px-6
+                    text-center
+                  "
+                >
+                  <div
+                    className="
+                      relative
+
+                      flex
+                      h-16
+                      w-16
+
+                      items-center
+                      justify-center
+                    "
+                  >
+                    <div
+                      aria-hidden="true"
+                      className="
+                        absolute
+                        inset-0
+
+                        animate-ping
+
+                        rounded-full
+
+                        bg-yellow-300/25
+                      "
+                    />
+
+                    <div
+                      aria-hidden="true"
+                      className="
+                        absolute
+                        inset-1
+
+                        animate-pulse
+
+                        rounded-full
+
+                        border-2
+                        border-dashed
+                        border-yellow-400
+                      "
+                    />
+
+                    <img
+                      src={ROTOM_AI_ICON}
+                      alt=""
+                      className="
+                        relative
+                        z-10
+
+                        h-11
+                        w-11
+
+                        object-contain
+
+                        drop-shadow-md
+                      "
+                    />
+                  </div>
+
+                  <div>
+                    <p
+                      className="
+                        font-mono
+
+                        text-[9px]
+                        font-black
+                        uppercase
+                        tracking-[0.14em]
+
+                        text-zinc-700
+                      "
+                    >
+                      Syncing Rotom Memory...
+                    </p>
+
+                    <p
+                      className="
+                        mt-2
+
+                        max-w-[260px]
+
+                        text-xs
+                        font-semibold
+                        leading-5
+
+                        text-zinc-500
+                      "
+                    >
+                      Loading your saved Trainer conversation from the RotomPC
+                      network.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* =========================================
+                  SAVED MESSAGES
+              ========================================== */}
+
+              {!historyLoading &&
+                messages.map((message) => (
+                  <RotomAIMessage key={message.id} message={message} />
+                ))}
+
+              {/* =========================================
+                  EMPTY STATE
+              ========================================== */}
+
+              {!historyLoading && messages.length === 0 && !sending && (
+                <div
+                  className="
+                      flex
+                      min-h-[220px]
+                      flex-col
+                      items-center
+                      justify-center
+
+                      px-6
+
+                      text-center
+                    "
+                >
+                  <div
+                    className="
+                        mb-4
+
+                        flex
+                        h-16
+                        w-16
+
+                        items-center
+                        justify-center
+
+                        rounded-2xl
+
+                        border-2
+                        border-zinc-950
+
+                        bg-white
+
+                        shadow-[3px_3px_0_#18181b]
+                      "
+                  >
+                    <img
+                      src={ROTOM_AI_ICON}
+                      alt=""
+                      className="
+                          h-12
+                          w-12
+
+                          object-contain
+                        "
+                    />
+                  </div>
+
+                  <p
+                    className="
+                        font-display
+
+                        text-lg
+                        font-bold
+
+                        text-zinc-950
+                      "
+                  >
+                    Rotom Memory Ready!
+                  </p>
+
+                  <p
+                    className="
+                        mt-2
+
+                        max-w-[290px]
+
+                        text-xs
+                        font-semibold
+                        leading-5
+
+                        text-zinc-500
+                      "
+                  >
+                    Ask about Pokémon, games, Pokédex data, battle mechanics, or
+                    current events.
+                  </p>
+
+                  <p
+                    className="
+                        mt-3
+
+                        font-mono
+
+                        text-[7px]
+                        font-black
+                        uppercase
+                        tracking-[0.1em]
+
+                        text-zinc-400
+                      "
+                  >
+                    Conversations are saved to your Trainer account
+                  </p>
+                </div>
+              )}
+
+              {/* =========================================
+                  THINKING
+              ========================================== */}
 
               {sending && (
                 <div className="rotom-ai-thinking">
@@ -186,9 +489,11 @@ const RotomAIChatModal = ({
 
             {/* ===========================================
                 QUICK PROMPTS
+
+                Don't show while saved history is loading.
             ============================================ */}
 
-            {messages.length <= 2 && (
+            {!historyLoading && messages.length <= 2 && (
               <div className="rotom-ai-quick">
                 <p className="rotom-ai-quick__label">Quick Scan</p>
 
@@ -197,7 +502,7 @@ const RotomAIChatModal = ({
                     <button
                       key={prompt}
                       type="button"
-                      disabled={sending}
+                      disabled={busy}
                       onClick={() => sendMessage(prompt)}
                     >
                       {prompt}
@@ -225,20 +530,28 @@ const RotomAIChatModal = ({
                     rows={1}
                     maxLength={4000}
                     value={input}
-                    disabled={sending}
+                    disabled={busy}
                     onChange={(event) => setInput(event.target.value)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" && !event.shiftKey) {
                         event.preventDefault();
 
-                        sendMessage();
+                        handleSend();
                       }
                     }}
-                    placeholder="Ask RotomAI about Pokémon..."
+                    placeholder={
+                      historyLoading
+                        ? "Syncing Rotom memory..."
+                        : "Ask RotomAI about Pokémon..."
+                    }
                   />
 
                   <div className="rotom-ai-composer__meta">
-                    <span>Enter to send · Shift+Enter for new line</span>
+                    <span>
+                      {historyLoading
+                        ? "Restoring saved conversation..."
+                        : "Enter to send · Shift+Enter for new line"}
+                    </span>
 
                     <span>
                       {input.length}
@@ -249,27 +562,33 @@ const RotomAIChatModal = ({
 
                 <button
                   type="button"
-                  disabled={sending || !input.trim()}
-                  onClick={() => sendMessage()}
+                  disabled={busy || !input.trim()}
+                  onClick={handleSend}
                   className="rotom-ai-composer__send"
                   aria-label="Send message"
                 >
-                  ⚡
+                  {sending ? "…" : "⚡"}
                 </button>
               </div>
+
+              {/* =========================================
+                  FOOTER
+              ========================================== */}
 
               <div className="rotom-ai-composer__footer">
                 <button
                   type="button"
-                  onClick={clearConversation}
+                  onClick={handleClear}
+                  disabled={busy || messages.length === 0}
                   className="rotom-ai-composer__mobile-clear"
                 >
                   Clear Chat
                 </button>
 
                 <p>
-                  Verify important competitive or time-sensitive details with
-                  official sources.
+                  Chat history is synced to your Trainer account. Verify
+                  important competitive or time-sensitive details with official
+                  sources.
                 </p>
               </div>
             </div>

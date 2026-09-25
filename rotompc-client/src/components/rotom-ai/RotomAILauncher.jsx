@@ -1,129 +1,94 @@
-// rotompc-client/src/components/rotom-ai/RotomAILauncher.jsx
-
 import { ROTOM_AI_ICON } from "@/constants/rotomAI";
 
-import { ROTOM_PHASE } from "@/hooks/useRotomAILauncherCycle";
-
-/* =========================================================
-   ELECTRICITY
-========================================================= */
-
-const RotomElectricField = () => (
-  <span className="rotom-ai-electric" aria-hidden="true">
-    <span className="rotom-ai-electric__glow" />
-
-    <span className="rotom-ai-electric__ring rotom-ai-electric__ring--one" />
-
-    <span className="rotom-ai-electric__ring rotom-ai-electric__ring--two" />
-
-    <span className="rotom-ai-electric__bolt rotom-ai-electric__bolt--1" />
-
-    <span className="rotom-ai-electric__bolt rotom-ai-electric__bolt--2" />
-
-    <span className="rotom-ai-electric__bolt rotom-ai-electric__bolt--3" />
-
-    <span className="rotom-ai-electric__bolt rotom-ai-electric__bolt--4" />
-
-    <span className="rotom-ai-electric__bolt rotom-ai-electric__bolt--5" />
-
-    <span className="rotom-ai-electric__bolt rotom-ai-electric__bolt--6" />
-
-    <span className="rotom-ai-electric__spark rotom-ai-electric__spark--1" />
-
-    <span className="rotom-ai-electric__spark rotom-ai-electric__spark--2" />
-
-    <span className="rotom-ai-electric__spark rotom-ai-electric__spark--3" />
-
-    <span className="rotom-ai-electric__spark rotom-ai-electric__spark--4" />
-  </span>
-);
+import useRotomAILauncherCycle from "@/hooks/useRotomAILauncherCycle";
 
 /* =========================================================
    LAUNCHER
 ========================================================= */
 
-const RotomAILauncher = ({
-  phase,
+const RotomAILauncher = ({ onOpen, open = false }) => {
+  const {
+    phase,
 
-  position,
+    position,
 
-  teleporting,
+    bubble,
 
-  teleportKey,
-
-  bubbleText,
-
-  buddyVisible,
-
-  onOpen,
-}) => {
-  const isDocked = phase === ROTOM_PHASE.DOCKED;
-
-  const launcherStyle = isDocked
-    ? undefined
-    : {
-        left: `${position.x}px`,
-
-        top: `${position.y}px`,
-      };
+    teleportKey,
+  } = useRotomAILauncherCycle({
+    paused: open,
+  });
 
   return (
     <div
-      key={teleportKey}
-      style={launcherStyle}
       className={`
         rotom-ai-launcher
 
-        ${
-          isDocked ? "rotom-ai-launcher--docked" : "rotom-ai-launcher--teleport"
-        }
-
-        ${isDocked && !buddyVisible ? "rotom-ai-launcher--solo" : ""}
-
-        ${teleporting ? "rotom-ai-launcher--teleporting" : ""}
+        rotom-ai-launcher--${phase}
       `}
+      style={{
+        "--rotom-x": `${position.x}px`,
+
+        "--rotom-y": `${position.y}px`,
+      }}
     >
-      {/* ===============================================
-          ELECTRICITY
+      {/* =================================================
+          ELECTRIC FIELD
+      ================================================== */}
 
-          ONLY DURING TELEPORT MODE
-      ================================================ */}
+      <div className="rotom-ai-launcher__electric" aria-hidden="true">
+        <span className="rotom-ai-launcher__electric-ring rotom-ai-launcher__electric-ring--one" />
 
-      {!isDocked && <RotomElectricField />}
+        <span className="rotom-ai-launcher__electric-ring rotom-ai-launcher__electric-ring--two" />
 
-      {/* ===============================================
-          CHAT BUBBLE
+        <span className="rotom-ai-launcher__spark rotom-ai-launcher__spark--one">
+          ⚡
+        </span>
 
-          ONLY WHILE DOCKED
-      ================================================ */}
+        <span className="rotom-ai-launcher__spark rotom-ai-launcher__spark--two">
+          ⚡
+        </span>
 
-      {isDocked && (
-        <div className="rotom-ai-nudge" aria-hidden="true">
-          <span className="rotom-ai-nudge__text">{bubbleText}</span>
-        </div>
+        <span className="rotom-ai-launcher__spark rotom-ai-launcher__spark--three">
+          ⚡
+        </span>
+      </div>
+
+      {/* =================================================
+          TELEPORT FLASH
+
+          Re-mounts every jump.
+      ================================================== */}
+
+      {phase === "teleporting" && (
+        <span
+          key={teleportKey}
+          className="rotom-ai-launcher__teleport-flash"
+          aria-hidden="true"
+        />
       )}
 
-      {/* ===============================================
-          ROTOM
+      {/* =================================================
+          CHAT BUBBLE
+      ================================================== */}
 
-          NO BOX
-          NO BACKGROUND
-          NO BORDER
-      ================================================ */}
+      {phase === "docked" && bubble && (
+        <div className="rotom-ai-launcher__bubble">{bubble}</div>
+      )}
+
+      {/* =================================================
+          BUTTON
+      ================================================== */}
 
       <button
         type="button"
         onClick={onOpen}
         aria-label="Open RotomAI"
-        title="RotomAI"
         className="rotom-ai-launcher__button"
       >
-        <img
-          src={ROTOM_AI_ICON}
-          alt=""
-          draggable="false"
-          className="rotom-ai-launcher__icon"
-        />
+        <span className="rotom-ai-launcher__icon-wrap">
+          <img src={ROTOM_AI_ICON} alt="" className="rotom-ai-launcher__icon" />
+        </span>
       </button>
     </div>
   );

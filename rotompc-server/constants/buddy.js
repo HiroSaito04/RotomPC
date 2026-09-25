@@ -5,10 +5,10 @@ const BUDDY_MAX_AFFECTION = 100;
 
 const BUDDY_STARTING_BERRIES = 5;
 
-const BUDDY_PET_ENERGY_COST = 1;
+const BUDDY_PET_ENERGY_COST = 5;
 const BUDDY_PLAY_ENERGY_COST = 10;
 
-const BUDDY_BERRY_ENERGY_GAIN = 30;
+const BUDDY_BERRY_ENERGY_GAIN = 15;
 
 /*
  * Buddy wakes weak after its 2-minute rest.

@@ -8,14 +8,15 @@ const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
 const POKEAPI_BASE = "https://pokeapi.co/api/v2";
 
-const MAIN_MODEL = process.env.ROTOM_AI_MODEL || "gemini-3.8-flash";
+const MAIN_MODEL = process.env.ROTOM_AI_MODEL || "gemini-3.6-flash";
 
-const LIVE_MODEL = process.env.ROTOM_AI_LIVE_MODEL || "gemini-2.5-flash";
+const LIVE_MODEL = process.env.ROTOM_AI_LIVE_MODEL || "gemini-3.6-flash";
 
 const FALLBACK_MODELS = [
   MAIN_MODEL,
-  "gemini-2.5-pro",
-  "gemini-2.5-flash",
+  "gemini-3.7-flash",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash",
 ].filter((model, index, array) => array.indexOf(model) === index);
 
 /* =========================================================
@@ -692,9 +693,13 @@ const askRotomAI = async ({ message, history = [] }) => {
   /* -----------------------------------------------------
        CURRENT EVENTS
 
-       Gemini 2.5 Flash currently
-       provides the useful free-tier
-       Search grounding quota.
+        Use a current Gemini 3.x model
+        with Google Search grounding.
+
+        If grounding is unavailable for
+        the current account/tier, RotomAI
+        safely falls back to normal
+        generation below
     ----------------------------------------------------- */
 
   if (wantsLiveInfo) {

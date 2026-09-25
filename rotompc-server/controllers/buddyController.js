@@ -2,13 +2,23 @@
 
 const {
   BuddyError,
+
   getBuddyState,
+
   serializeBuddyState,
+
   setBuddyPokemon,
+
   petBuddy,
+
   playWithBuddy,
+
   feedBuddy,
 } = require("../services/buddyService");
+
+/* =========================================================
+   ERROR
+========================================================= */
 
 const sendError = (res, error) => {
   console.error("Buddy controller:", error);
@@ -48,7 +58,11 @@ const selectBuddy = async (req, res) => {
   try {
     const { pokemon } = req.body;
 
-    const state = await setBuddyPokemon(req.user.id, pokemon ?? null);
+    const state = await setBuddyPokemon(
+      req.user.id,
+
+      pokemon ?? null,
+    );
 
     return res.json({
       message: state.pokemon?.id ? "Buddy updated." : "Buddy cleared.",
@@ -106,10 +120,18 @@ const play = async (req, res) => {
 
 const feed = async (req, res) => {
   try {
-    const state = await feedBuddy(req.user.id, req.body.berry);
+    const berry = String(req.body?.berry || "")
+      .trim()
+      .toLowerCase();
+
+    const state = await feedBuddy(
+      req.user.id,
+
+      berry,
+    );
 
     return res.json({
-      message: `${req.body.berry} berry eaten!`,
+      message: `${berry} berry eaten!`,
 
       buddy: serializeBuddyState(state),
     });
@@ -118,10 +140,18 @@ const feed = async (req, res) => {
   }
 };
 
+/* =========================================================
+   EXPORTS
+========================================================= */
+
 module.exports = {
   getBuddy,
+
   selectBuddy,
+
   pet,
+
   play,
+
   feed,
 };

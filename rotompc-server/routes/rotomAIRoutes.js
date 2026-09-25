@@ -3,11 +3,16 @@
 const express = require("express");
 
 const {
-  chatWithRotomAI,
   getRotomAIStatus,
+
+  getRotomAIHistory,
+
+  chatWithRotomAI,
+
+  clearRotomAIHistory,
 } = require("../controllers/rotomAIController");
 
-const rotomAIRateLimit = require("../middlewares/rotomAIRateLimit");
+const { verifyToken } = require("../middlewares/authMiddleware");
 
 const router = express.Router();
 
@@ -15,12 +20,38 @@ const router = express.Router();
    STATUS
 ========================================================= */
 
-router.get("/status", getRotomAIStatus);
+router.get(
+  "/status",
+
+  getRotomAIStatus,
+);
 
 /* =========================================================
-   CHAT
+   AUTHENTICATED ROTOMAI
 ========================================================= */
 
-router.post("/chat", rotomAIRateLimit, chatWithRotomAI);
+router.get(
+  "/history",
+
+  verifyToken,
+
+  getRotomAIHistory,
+);
+
+router.post(
+  "/chat",
+
+  verifyToken,
+
+  chatWithRotomAI,
+);
+
+router.delete(
+  "/history",
+
+  verifyToken,
+
+  clearRotomAIHistory,
+);
 
 module.exports = router;

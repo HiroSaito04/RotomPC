@@ -6,94 +6,77 @@
 
 :root {
   --rotom-ai-red: #e63946;
-
   --rotom-ai-red-light: #ff5964;
 
   --rotom-ai-ink: #264653;
 
   --rotom-ai-screen: #f1faee;
-
   --rotom-ai-screen-dark: #e5f3e1;
 
   --rotom-ai-yellow: #ffd60a;
-
   --rotom-ai-yellow-bright: #fff36a;
 
   --rotom-ai-electric-blue: #61e7ff;
-
   --rotom-ai-electric-white: #f8ffff;
 }
 
 /* =========================================================
    LAUNCHER
-
-   Smaller on mobile.
 ========================================================= */
 
 .rotom-ai-launcher {
   position: fixed;
 
-  z-index: 55;
+  left: 0;
+  top: 0;
 
-  width: 64px;
-  height: 64px;
+  z-index: 190;
+
+  width: 72px;
+  height: 72px;
+
+  transform: translate3d(var(--rotom-x, 24px), var(--rotom-y, 120px), 0);
+
+  transform-origin: center;
+
+  will-change: transform;
 
   pointer-events: none;
 }
 
 /* =========================================================
-   TELEPORT POSITION
+   TELEPORT PHASE
+
+   Position changes are intentionally instant.
 ========================================================= */
 
-.rotom-ai-launcher--teleport {
-  transition:
-    left 90ms linear,
-    top 90ms linear;
+.rotom-ai-launcher--teleporting {
+  transition: none;
 }
 
 /* =========================================================
-   DOCKED ROTOM
+   SETTLING PHASE
 
-   MOBILE:
-   Smaller Rotom above Buddy.
+   Final teleport point -> Buddy position.
+========================================================= */
+
+.rotom-ai-launcher--settling {
+  transition: transform 720ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* =========================================================
+   DOCKED POSITION
+
+   Position remains transform-driven.
+   Do NOT mix right/bottom with --rotom-x / --rotom-y.
 ========================================================= */
 
 .rotom-ai-launcher--docked {
-  right: 0.6rem;
-
-  /*
-   * Buddy:
-   * bottom: 16px
-   * height: 48px
-   *
-   * Dock Rotom above it.
-   */
-  bottom: 4.65rem;
-
-  width: 56px;
-  height: 56px;
-
-  animation: rotomDockAppear 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
-/* =========================================================
-   NO BUDDY
-========================================================= */
-
-.rotom-ai-launcher--docked.rotom-ai-launcher--solo {
-  right: 0.75rem;
-
-  bottom: 1rem;
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* =========================================================
    RAW ICON BUTTON
-
-   Intentionally:
-   no box
-   no border
-   no background
-   no shadow rectangle
 ========================================================= */
 
 .rotom-ai-launcher__button {
@@ -101,34 +84,37 @@
 
   z-index: 5;
 
-  display: block;
+  display: flex;
 
-  width: 100%;
-  height: 100%;
+  width: 72px;
+  height: 72px;
 
-  padding: 0;
-
-  pointer-events: auto;
-
-  cursor: pointer;
+  align-items: center;
+  justify-content: center;
 
   border: 0;
 
-  outline: none;
+  padding: 0;
 
   background: transparent;
 
-  appearance: none;
+  cursor: pointer;
 
-  -webkit-tap-highlight-color: transparent;
+  outline: none;
+
+  pointer-events: auto;
+
+  transform-origin: 50% 55%;
 
   transition:
-    transform 150ms ease,
-    filter 150ms ease;
+    transform 160ms ease,
+    filter 160ms ease;
+
+  -webkit-tap-highlight-color: transparent;
 }
 
 .rotom-ai-launcher__button:hover {
-  transform: translateY(-4px) scale(1.06);
+  transform: translateY(-3px) scale(1.045);
 }
 
 .rotom-ai-launcher__button:active {
@@ -136,11 +122,31 @@
 }
 
 .rotom-ai-launcher__button:focus-visible {
+  border-radius: 50%;
+
   outline: 3px solid rgba(255, 214, 10, 0.9);
 
   outline-offset: 6px;
+}
 
-  border-radius: 50%;
+/* =========================================================
+   ICON WRAPPER
+========================================================= */
+
+.rotom-ai-launcher__icon-wrap {
+  position: relative;
+
+  display: flex;
+
+  width: 68px;
+  height: 68px;
+
+  align-items: center;
+  justify-content: center;
+
+  transform-origin: center;
+
+  will-change: transform, filter;
 }
 
 /* =========================================================
@@ -148,10 +154,6 @@
 ========================================================= */
 
 .rotom-ai-launcher__icon {
-  position: relative;
-
-  z-index: 5;
-
   display: block;
 
   width: 100%;
@@ -163,18 +165,146 @@
 
   pointer-events: none;
 
-  filter: drop-shadow(0 4px 1px rgba(38, 70, 83, 0.32));
-
-  animation: rotomIdleFloat 1.7s ease-in-out infinite;
+  filter: drop-shadow(0 4px 4px rgba(0, 0, 0, 0.28));
 }
 
-.rotom-ai-launcher--docked .rotom-ai-launcher__icon {
-  animation: rotomDockFloat 2.5s ease-in-out infinite;
+/*
+ * IMPORTANT:
+ * Do not animate the icon itself while docked.
+ *
+ * The wrapper owns all movement.
+ * This avoids two nested translate/rotate animations
+ * fighting each other.
+ */
+
+/* =========================================================
+   TELEPORT FLOAT
+========================================================= */
+
+.rotom-ai-launcher--teleporting .rotom-ai-launcher__icon-wrap {
+  animation: rotomAiTeleportFloat 850ms ease-in-out infinite alternate;
+}
+
+@keyframes rotomAiTeleportFloat {
+  from {
+    transform: translateY(-2px) rotate(-2deg) scale(1);
+  }
+
+  to {
+    transform: translateY(3px) rotate(2deg) scale(1.02);
+  }
+}
+
+/* =========================================================
+   SETTLING MOTION
+
+   Gives Rotom a braking / recoil motion while the outer
+   launcher glides toward Buddy.
+========================================================= */
+
+.rotom-ai-launcher--settling .rotom-ai-launcher__icon-wrap {
+  animation: rotomAiSettle 720ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes rotomAiSettle {
+  0% {
+    transform: translateY(0) scale(1.08) rotate(-8deg);
+
+    filter: brightness(1.2) saturate(1.12);
+  }
+
+  28% {
+    transform: translateY(-2px) scale(1.02) rotate(5deg);
+
+    filter: brightness(1.12) saturate(1.08);
+  }
+
+  52% {
+    transform: translateY(2px) scale(0.97) rotate(-3deg);
+
+    filter: brightness(1.06);
+  }
+
+  72% {
+    transform: translateY(-1px) scale(1.025) rotate(1.5deg);
+  }
+
+  88% {
+    transform: translateY(1px) scale(0.993) rotate(-0.5deg);
+  }
+
+  100% {
+    transform: translateY(0) scale(1) rotate(0deg);
+
+    filter: brightness(1) saturate(1);
+  }
+}
+
+/* =========================================================
+   DOCKED IDLE
+
+   Rotom never becomes completely frozen.
+========================================================= */
+
+.rotom-ai-launcher--docked .rotom-ai-launcher__icon-wrap {
+  animation: rotomAiDockedIdle 2600ms ease-in-out infinite;
+}
+
+@keyframes rotomAiDockedIdle {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+
+  25% {
+    transform: translateY(-2px) rotate(-0.8deg);
+  }
+
+  50% {
+    transform: translateY(-4px) rotate(1deg);
+  }
+
+  75% {
+    transform: translateY(-2px) rotate(-0.5deg);
+  }
 }
 
 /* =========================================================
    ELECTRIC FIELD
 ========================================================= */
+
+/*
+ * New launcher markup.
+ */
+
+.rotom-ai-launcher__electric {
+  position: absolute;
+
+  inset: -18px;
+
+  z-index: 1;
+
+  pointer-events: none;
+
+  opacity: 1;
+
+  transform: scale(1);
+
+  transform-origin: center;
+
+  filter: blur(0);
+
+  transition:
+    opacity 500ms ease,
+    transform 650ms cubic-bezier(0.16, 1, 0.3, 1),
+    filter 500ms ease;
+
+  will-change: opacity, transform, filter;
+}
+
+/*
+ * Older launcher markup compatibility.
+ */
 
 .rotom-ai-electric {
   position: absolute;
@@ -185,13 +315,50 @@
 
   pointer-events: none;
 
-  transform: scale(0.86);
+  opacity: 1;
+
+  transform: scale(0.9);
 
   transform-origin: center;
+
+  filter: blur(0);
+
+  transition:
+    opacity 500ms ease,
+    transform 650ms cubic-bezier(0.16, 1, 0.3, 1),
+    filter 500ms ease;
 }
 
 /* =========================================================
-   ELECTRIC GLOW
+   ELECTRIC FIELD WHILE SETTLING
+
+   Electricity contracts toward Rotom rather than vanishing.
+========================================================= */
+
+.rotom-ai-launcher--settling .rotom-ai-launcher__electric,
+.rotom-ai-launcher--settling .rotom-ai-electric {
+  opacity: 0.36;
+
+  transform: scale(0.66);
+
+  filter: blur(1.5px);
+}
+
+/* =========================================================
+   ELECTRIC FIELD WHILE DOCKED
+========================================================= */
+
+.rotom-ai-launcher--docked .rotom-ai-launcher__electric,
+.rotom-ai-launcher--docked .rotom-ai-electric {
+  opacity: 0;
+
+  transform: scale(0.48);
+
+  filter: blur(4px);
+}
+
+/* =========================================================
+   OLD ELECTRIC GLOW
 ========================================================= */
 
 .rotom-ai-electric__glow {
@@ -214,8 +381,22 @@
   animation: rotomElectricGlow 530ms ease-in-out infinite alternate;
 }
 
+@keyframes rotomElectricGlow {
+  from {
+    opacity: 0.45;
+
+    transform: scale(0.86);
+  }
+
+  to {
+    opacity: 1;
+
+    transform: scale(1.16);
+  }
+}
+
 /* =========================================================
-   ELECTRIC RINGS
+   OLD ELECTRIC RINGS
 ========================================================= */
 
 .rotom-ai-electric__ring {
@@ -242,8 +423,36 @@
   animation: rotomElectricRingTwo 780ms linear infinite reverse;
 }
 
+@keyframes rotomElectricRingOne {
+  from {
+    transform: rotate(0deg) scale(0.9);
+  }
+
+  50% {
+    transform: rotate(180deg) scale(1.04);
+  }
+
+  to {
+    transform: rotate(360deg) scale(0.9);
+  }
+}
+
+@keyframes rotomElectricRingTwo {
+  from {
+    transform: rotate(0deg) scale(0.92);
+  }
+
+  50% {
+    transform: rotate(180deg) scale(1.08);
+  }
+
+  to {
+    transform: rotate(360deg) scale(0.92);
+  }
+}
+
 /* =========================================================
-   LIGHTNING BOLTS
+   OLD LIGHTNING BOLTS
 ========================================================= */
 
 .rotom-ai-electric__bolt {
@@ -332,8 +541,30 @@
   animation-delay: -120ms;
 }
 
+@keyframes rotomBoltFlash {
+  0% {
+    opacity: 0.08;
+
+    filter: brightness(1);
+  }
+
+  40% {
+    opacity: 1;
+
+    filter: brightness(2);
+  }
+
+  60% {
+    opacity: 0.25;
+  }
+
+  100% {
+    opacity: 0.75;
+  }
+}
+
 /* =========================================================
-   SMALL SPARKS
+   OLD SMALL SPARKS
 ========================================================= */
 
 .rotom-ai-electric__spark {
@@ -382,27 +613,218 @@
   animation-delay: -220ms;
 }
 
-/* =========================================================
-   TELEPORT ANIMATION
-========================================================= */
+@keyframes rotomSpark {
+  0%,
+  100% {
+    opacity: 0.1;
 
-.rotom-ai-launcher--teleporting {
-  animation: rotomTeleport 360ms cubic-bezier(0.5, 0, 0.5, 1) both;
+    transform: scale(0.4);
+  }
+
+  50% {
+    opacity: 1;
+
+    transform: scale(1.3);
+  }
 }
 
 /* =========================================================
-   DOCK CHAT BUBBLE
+   NEW ELECTRIC RINGS
+========================================================= */
 
-   Mobile-safe.
-   Anchored toward the right so it cannot
-   escape the viewport.
+.rotom-ai-launcher__electric-ring {
+  position: absolute;
+
+  inset: 10px;
+
+  border: 2px solid rgba(255, 214, 10, 0.82);
+
+  border-radius: 50%;
+
+  box-shadow:
+    0 0 12px rgba(255, 214, 10, 0.65),
+    inset 0 0 8px rgba(255, 214, 10, 0.28);
+}
+
+.rotom-ai-launcher__electric-ring--one {
+  animation: rotomAiElectricRingOne 950ms ease-out infinite;
+}
+
+.rotom-ai-launcher__electric-ring--two {
+  animation: rotomAiElectricRingTwo 1150ms ease-out infinite;
+}
+
+@keyframes rotomAiElectricRingOne {
+  0% {
+    opacity: 0;
+
+    transform: scale(0.56);
+  }
+
+  25% {
+    opacity: 0.9;
+  }
+
+  100% {
+    opacity: 0;
+
+    transform: scale(1.35);
+  }
+}
+
+@keyframes rotomAiElectricRingTwo {
+  0% {
+    opacity: 0;
+
+    transform: scale(0.72) rotate(15deg);
+  }
+
+  30% {
+    opacity: 0.65;
+  }
+
+  100% {
+    opacity: 0;
+
+    transform: scale(1.5) rotate(65deg);
+  }
+}
+
+/* =========================================================
+   NEW SPARKS
+========================================================= */
+
+.rotom-ai-launcher__spark {
+  position: absolute;
+
+  color: var(--rotom-ai-yellow);
+
+  font-size: 16px;
+
+  line-height: 1;
+
+  text-shadow: 0 0 7px rgba(255, 203, 5, 0.85);
+
+  animation: rotomAiLauncherSpark 700ms steps(2, end) infinite;
+}
+
+.rotom-ai-launcher__spark--one {
+  left: 3px;
+  top: 12px;
+
+  transform: rotate(-22deg);
+}
+
+.rotom-ai-launcher__spark--two {
+  right: 2px;
+  top: 27px;
+
+  transform: rotate(24deg);
+
+  animation-delay: 180ms;
+}
+
+.rotom-ai-launcher__spark--three {
+  left: 25px;
+  bottom: 2px;
+
+  transform: rotate(-5deg);
+
+  animation-delay: 340ms;
+}
+
+@keyframes rotomAiLauncherSpark {
+  0%,
+  48% {
+    opacity: 0;
+
+    scale: 0.65;
+  }
+
+  49%,
+  75% {
+    opacity: 1;
+
+    scale: 1;
+  }
+
+  100% {
+    opacity: 0;
+
+    scale: 1.15;
+  }
+}
+
+/* =========================================================
+   TELEPORT FLASH
+========================================================= */
+
+.rotom-ai-launcher__teleport-flash {
+  position: absolute;
+
+  left: 50%;
+  top: 50%;
+
+  z-index: 2;
+
+  width: 88px;
+  height: 88px;
+
+  border-radius: 50%;
+
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(255, 243, 106, 0.86) 18%,
+    rgba(255, 214, 10, 0.52) 38%,
+    rgba(97, 231, 255, 0.16) 56%,
+    transparent 74%
+  );
+
+  transform: translate(-50%, -50%) scale(0.18);
+
+  pointer-events: none;
+
+  filter: blur(0);
+
+  animation: rotomAiTeleportFlash 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes rotomAiTeleportFlash {
+  0% {
+    opacity: 0;
+
+    transform: translate(-50%, -50%) scale(0.18);
+  }
+
+  16% {
+    opacity: 1;
+
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+
+  45% {
+    opacity: 0.95;
+
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+
+    transform: translate(-50%, -50%) scale(1.55);
+  }
+}
+
+/* =========================================================
+   LEGACY DOCK CHAT BUBBLE
 ========================================================= */
 
 .rotom-ai-nudge {
   position: absolute;
 
   right: -2px;
-  bottom: calc(100% + 5px);
+  bottom: calc(100% + 7px);
 
   left: auto;
 
@@ -410,16 +832,11 @@
 
   width: max-content;
 
-  /*
-   * Never exceed the mobile viewport.
-   */
   max-width: min(165px, calc(100vw - 24px));
-
-  transform: none;
 
   pointer-events: none;
 
-  animation: rotomBubbleAppearMobile 350ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: rotomAiBubbleArrival 330ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .rotom-ai-nudge__text {
@@ -451,29 +868,16 @@
 
   line-height: 1.25;
 
-  /*
-   * Important:
-   * allow longer random phrases
-   * to wrap instead of overflowing.
-   */
-  white-space: normal;
-
   overflow-wrap: break-word;
 
-  word-break: normal;
+  white-space: normal;
 
   text-align: center;
 
   box-shadow: 2px 2px 0 #18181b;
 
-  animation: rotomBubbleFloat 2s ease-in-out infinite;
+  animation: rotomAiBubbleFloat 2200ms ease-in-out infinite;
 }
-
-/* =========================================================
-   SPEECH BUBBLE POINTER
-
-   Point toward docked Rotom.
-========================================================= */
 
 .rotom-ai-nudge__text::after {
   content: "";
@@ -482,8 +886,6 @@
 
   right: 18px;
   top: 100%;
-
-  left: auto;
 
   width: 9px;
   height: 9px;
@@ -497,21 +899,101 @@
   background: #ffffff;
 }
 
-@keyframes rotomBubbleAppearMobile {
+/* =========================================================
+   NEW DOCK CHAT BUBBLE
+========================================================= */
+
+.rotom-ai-launcher__bubble {
+  position: absolute;
+
+  right: -2px;
+  bottom: calc(100% + 7px);
+
+  z-index: 12;
+
+  width: max-content;
+
+  max-width: min(175px, calc(100vw - 24px));
+
+  padding: 7px 10px;
+
+  border: 2px solid #18181b;
+
+  border-radius: 11px;
+
+  background: #ffffff;
+
+  color: #18181b;
+
+  font-family: var(--font-body, sans-serif);
+
+  font-size: 9px;
+
+  font-weight: 900;
+
+  line-height: 1.3;
+
+  overflow-wrap: break-word;
+
+  white-space: normal;
+
+  text-align: center;
+
+  pointer-events: none;
+
+  box-shadow: 2px 2px 0 #18181b;
+
+  animation: rotomAiBubbleArrival 330ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.rotom-ai-launcher__bubble::after {
+  content: "";
+
+  position: absolute;
+
+  right: 18px;
+  top: 100%;
+
+  width: 9px;
+  height: 9px;
+
+  transform: translateY(-4px) rotate(45deg);
+
+  border-right: 2px solid #18181b;
+
+  border-bottom: 2px solid #18181b;
+
+  background: #ffffff;
+}
+
+@keyframes rotomAiBubbleArrival {
   from {
     opacity: 0;
 
-    transform: translateY(7px) scale(0.82);
+    transform: translateY(9px) scale(0.84);
+  }
 
-    transform-origin: bottom right;
+  70% {
+    opacity: 1;
+
+    transform: translateY(-2px) scale(1.025);
   }
 
   to {
     opacity: 1;
 
     transform: translateY(0) scale(1);
+  }
+}
 
-    transform-origin: bottom right;
+@keyframes rotomAiBubbleFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-3px);
   }
 }
 
@@ -529,7 +1011,6 @@
   display: flex;
 
   align-items: flex-end;
-
   justify-content: center;
 
   background: rgba(8, 23, 32, 0.82);
@@ -612,7 +1093,6 @@
   flex-shrink: 0;
 
   align-items: center;
-
   justify-content: space-between;
 
   gap: 12px;
@@ -645,7 +1125,6 @@
   flex-shrink: 0;
 
   align-items: center;
-
   justify-content: center;
 }
 
@@ -745,7 +1224,8 @@
 
   transition:
     transform 150ms ease,
-    background 150ms ease;
+    background 150ms ease,
+    opacity 150ms ease;
 }
 
 .rotom-ai-modal__clear {
@@ -767,7 +1247,6 @@
   height: 40px;
 
   align-items: center;
-
   justify-content: center;
 
   border-width: 3px;
@@ -777,11 +1256,18 @@
   font-size: 22px;
 }
 
-.rotom-ai-modal__clear:hover,
-.rotom-ai-modal__close:hover {
+.rotom-ai-modal__clear:hover:not(:disabled),
+.rotom-ai-modal__close:hover:not(:disabled) {
   transform: translateY(-2px);
 
   background: #fff5a8;
+}
+
+.rotom-ai-modal__clear:disabled,
+.rotom-ai-modal__close:disabled {
+  cursor: not-allowed;
+
+  opacity: 0.45;
 }
 
 /* =========================================================
@@ -830,7 +1316,6 @@
   flex-shrink: 0;
 
   align-items: center;
-
   justify-content: space-between;
 
   gap: 12px;
@@ -884,19 +1369,23 @@
 ========================================================= */
 
 .rotom-ai-screen__messages {
+  display: flex;
+
   min-height: 0;
 
   flex: 1;
 
-  overflow-y: auto;
-
-  padding: 14px;
-
-  display: flex;
-
   flex-direction: column;
 
   gap: 16px;
+
+  overflow-y: auto;
+
+  overscroll-behavior: contain;
+
+  padding: 14px;
+
+  scroll-behavior: smooth;
 }
 
 /* =========================================================
@@ -1110,7 +1599,6 @@
   flex-shrink: 0;
 
   align-items: center;
-
   justify-content: center;
 
   border-radius: 5px;
@@ -1145,9 +1633,9 @@
 ========================================================= */
 
 .rotom-ai-thinking {
-  align-self: flex-start;
-
   display: flex;
+
+  align-self: flex-start;
 
   align-items: center;
 
@@ -1272,12 +1760,23 @@
   font-weight: 700;
 
   box-shadow: 2px 2px 0 var(--rotom-ai-ink);
+
+  transition:
+    transform 150ms ease,
+    background 150ms ease,
+    opacity 150ms ease;
 }
 
-.rotom-ai-quick__items button:hover {
+.rotom-ai-quick__items button:hover:not(:disabled) {
   transform: translateY(-2px);
 
   background: #fffbea;
+}
+
+.rotom-ai-quick__items button:disabled {
+  cursor: not-allowed;
+
+  opacity: 0.45;
 }
 
 /* =========================================================
@@ -1336,7 +1835,6 @@
   width: 100%;
 
   min-height: 46px;
-
   max-height: 130px;
 
   resize: vertical;
@@ -1364,11 +1862,16 @@
   box-shadow: 0 0 0 4px rgba(255, 214, 10, 0.25);
 }
 
+.rotom-ai-composer textarea:disabled {
+  cursor: not-allowed;
+
+  opacity: 0.6;
+}
+
 .rotom-ai-composer__meta {
   display: flex;
 
   align-items: center;
-
   justify-content: space-between;
 
   gap: 8px;
@@ -1397,7 +1900,6 @@
   flex-shrink: 0;
 
   align-items: center;
-
   justify-content: center;
 
   border: 3px solid var(--rotom-ai-ink);
@@ -1415,6 +1917,11 @@
   font-weight: 900;
 
   box-shadow: 3px 3px 0 var(--rotom-ai-ink);
+
+  transition:
+    transform 150ms ease,
+    background 150ms ease,
+    opacity 150ms ease;
 }
 
 .rotom-ai-composer__send:hover:not(:disabled) {
@@ -1437,7 +1944,6 @@
   display: flex;
 
   align-items: center;
-
   justify-content: space-between;
 
   gap: 12px;
@@ -1473,195 +1979,15 @@
   text-transform: uppercase;
 }
 
+.rotom-ai-composer__mobile-clear:disabled {
+  cursor: not-allowed;
+
+  opacity: 0.4;
+}
+
 /* =========================================================
-   ANIMATIONS
+   MODAL ANIMATIONS
 ========================================================= */
-
-@keyframes rotomIdleFloat {
-  0%,
-  100% {
-    transform: translateY(0) rotate(-2deg);
-  }
-
-  50% {
-    transform: translateY(-5px) rotate(2deg);
-  }
-}
-
-@keyframes rotomDockFloat {
-  0%,
-  100% {
-    transform: translateY(0) rotate(-1deg);
-  }
-
-  50% {
-    transform: translateY(-3px) rotate(1deg);
-  }
-}
-
-@keyframes rotomElectricGlow {
-  from {
-    opacity: 0.45;
-
-    transform: scale(0.86);
-  }
-
-  to {
-    opacity: 1;
-
-    transform: scale(1.16);
-  }
-}
-
-@keyframes rotomElectricRingOne {
-  from {
-    transform: rotate(0deg) scale(0.9);
-  }
-
-  50% {
-    transform: rotate(180deg) scale(1.04);
-  }
-
-  to {
-    transform: rotate(360deg) scale(0.9);
-  }
-}
-
-@keyframes rotomElectricRingTwo {
-  from {
-    transform: rotate(0deg) scale(0.92);
-  }
-
-  50% {
-    transform: rotate(180deg) scale(1.08);
-  }
-
-  to {
-    transform: rotate(360deg) scale(0.92);
-  }
-}
-
-@keyframes rotomBoltFlash {
-  0% {
-    opacity: 0.08;
-
-    filter: brightness(1);
-  }
-
-  40% {
-    opacity: 1;
-
-    filter: brightness(2);
-  }
-
-  60% {
-    opacity: 0.25;
-  }
-
-  100% {
-    opacity: 0.75;
-  }
-}
-
-@keyframes rotomSpark {
-  0%,
-  100% {
-    opacity: 0.1;
-
-    transform: scale(0.4);
-  }
-
-  50% {
-    opacity: 1;
-
-    transform: scale(1.3);
-  }
-}
-
-@keyframes rotomTeleport {
-  0% {
-    opacity: 1;
-
-    transform: scale(1);
-
-    filter: brightness(1);
-  }
-
-  36% {
-    opacity: 1;
-
-    transform: scale(1.28);
-
-    filter: brightness(2.8) saturate(2);
-  }
-
-  51% {
-    opacity: 0;
-
-    transform: scale(0.08);
-
-    filter: brightness(5);
-  }
-
-  66% {
-    opacity: 0;
-
-    transform: scale(0.12);
-
-    filter: brightness(4);
-  }
-
-  100% {
-    opacity: 1;
-
-    transform: scale(1);
-
-    filter: brightness(1);
-  }
-}
-
-@keyframes rotomDockAppear {
-  from {
-    opacity: 0;
-
-    transform: translateY(15px) scale(0.65);
-  }
-
-  to {
-    opacity: 1;
-
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes rotomBubbleAppearMobile {
-  from {
-    opacity: 0;
-
-    transform: translateY(7px) scale(0.82);
-
-    transform-origin: bottom right;
-  }
-
-  to {
-    opacity: 1;
-
-    transform: translateY(0) scale(1);
-
-    transform-origin: bottom right;
-  }
-}
-
-@keyframes rotomBubbleFloat {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-
-  50% {
-    transform: translateY(-3px);
-  }
-}
 
 @keyframes rotomModalIn {
   from {
@@ -1713,10 +2039,9 @@
     transform: translateY(-5px);
   }
 }
+
 /* =========================================================
    TABLET / DESKTOP
-
-   Rotom sits farther LEFT of Buddy.
 ========================================================= */
 
 @media (min-width: 640px) {
@@ -1725,23 +2050,14 @@
     height: 78px;
   }
 
-  .rotom-ai-launcher--docked {
-    /*
-     * More horizontal breathing room
-     * from the Buddy button.
-     */
-    right: 11.25rem;
-
-    bottom: 1.15rem;
-
-    width: 66px;
-    height: 66px;
+  .rotom-ai-launcher__button {
+    width: 78px;
+    height: 78px;
   }
 
-  .rotom-ai-launcher--docked.rotom-ai-launcher--solo {
-    right: 1.5rem;
-
-    bottom: 1.5rem;
+  .rotom-ai-launcher__icon-wrap {
+    width: 74px;
+    height: 74px;
   }
 
   .rotom-ai-message {
@@ -1760,41 +2076,108 @@
     display: inline;
   }
 
+  .rotom-ai-modal__clear {
+    display: block;
+  }
+
   .rotom-ai-composer__mobile-clear {
     display: none;
+  }
+
+  .rotom-ai-nudge,
+  .rotom-ai-launcher__bubble {
+    right: calc(100% + 10px);
+
+    bottom: 50%;
+
+    max-width: 210px;
+
+    transform: translateY(50%);
+  }
+
+  .rotom-ai-nudge__text::after,
+  .rotom-ai-launcher__bubble::after {
+    right: -5px;
+    top: 50%;
+
+    width: 9px;
+    height: 9px;
+
+    transform: translateY(-50%) rotate(-45deg);
+
+    border-right: 2px solid #18181b;
+
+    border-bottom: 2px solid #18181b;
   }
 }
 
 /* =========================================================
-   LARGE DESKTOP
-
-   Even more separation on wide screens.
+   DESKTOP MODAL
 ========================================================= */
 
-@media (min-width: 1024px) {
-  .rotom-ai-launcher--docked {
-    right: 12.5rem;
+@media (min-width: 768px) {
+  .rotom-ai-modal-backdrop {
+    align-items: center;
 
-    bottom: 1.65rem;
+    padding: 24px;
   }
 
-  .rotom-ai-launcher--docked.rotom-ai-launcher--solo {
-    right: 2rem;
+  .rotom-ai-modal {
+    width: min(760px, calc(100vw - 48px));
 
-    bottom: 2rem;
+    height: min(760px, calc(100dvh - 48px));
+
+    max-height: calc(100dvh - 48px);
+
+    border-bottom: 4px solid var(--rotom-ai-ink);
+
+    border-radius: 28px;
+  }
+
+  .rotom-ai-modal__header {
+    padding: 14px 18px;
+  }
+
+  .rotom-ai-screen-shell {
+    padding: 14px;
+  }
+
+  .rotom-ai-screen__messages {
+    padding: 20px;
+  }
+
+  .rotom-ai-composer {
+    padding: 15px;
   }
 }
+
 /* =========================================================
    REDUCED MOTION
 ========================================================= */
 
 @media (prefers-reduced-motion: reduce) {
-  .rotom-ai-launcher__icon,
+  .rotom-ai-launcher,
+  .rotom-ai-launcher__button,
+  .rotom-ai-launcher__icon-wrap,
+  .rotom-ai-launcher__electric,
+  .rotom-ai-electric,
+  .rotom-ai-launcher__electric-ring,
+  .rotom-ai-launcher__spark,
+  .rotom-ai-launcher__teleport-flash,
+  .rotom-ai-electric__glow,
+  .rotom-ai-electric__ring,
+  .rotom-ai-electric__bolt,
+  .rotom-ai-electric__spark,
+  .rotom-ai-nudge,
   .rotom-ai-nudge__text,
+  .rotom-ai-launcher__bubble,
+  .rotom-ai-modal,
   .rotom-ai-modal__online-dot,
   .rotom-ai-screen__status-dot,
   .rotom-ai-thinking > img,
   .rotom-ai-thinking__dots span {
-    animation: none;
+    animation: none !important;
+
+    transition-duration: 0.01ms !important;
   }
 }

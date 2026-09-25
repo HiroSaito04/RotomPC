@@ -6,6 +6,10 @@ import { NavLink, useNavigate } from "react-router-dom";
 
 import Button from "@/components/Button";
 
+import LogoutConfirmModal from "@/components/auth/LogoutConfirmModal";
+
+import { clearAuthSession } from "@/utils/authSession";
+
 /* =========================================================
    LINKS
 ========================================================= */
@@ -70,8 +74,6 @@ const NAV_BUTTON_CLASS = `
 
 /* =========================================================
    SHARED BUTTON TEXT
-
-   All navbar controls use the exact same typography.
 ========================================================= */
 
 const NAV_BUTTON_TEXT_CLASS = `
@@ -125,9 +127,6 @@ const ButtonOverlay = () => (
 
 /* =========================================================
    AUTH INDICATOR
-
-   Green = authenticated
-   Gray  = logged out
 ========================================================= */
 
 const AuthIndicator = ({ authenticated }) => (
@@ -161,7 +160,7 @@ const AuthIndicator = ({ authenticated }) => (
 );
 
 /* =========================================================
-   ONE NAVBAR BUTTON COMPONENT
+   NAVBAR BUTTON
 ========================================================= */
 
 const NavbarButton = ({
@@ -381,30 +380,22 @@ const NavButtons = ({ mobile = false }) => (
 
 /* =========================================================
    AUTH BUTTON
-
-   Same NavbarButton component.
-   Same text styling.
-   Same height.
-   Same border.
-   Same shadow.
-
-   Only width differs on mobile because it lives beside logo.
 ========================================================= */
 
 const AuthButton = ({ isAuthenticated, onLogout, mobile = false }) => {
   const buttonClass = mobile
     ? `
-          w-auto
-          min-w-[88px]
-          shrink-0
+        w-auto
+        min-w-[88px]
+        shrink-0
 
-          px-2.5
-        `
+        px-2.5
+      `
     : `
-          w-[106px]
-          min-w-[106px]
-          shrink-0
-        `;
+        w-[106px]
+        min-w-[106px]
+        shrink-0
+      `;
 
   if (isAuthenticated) {
     return (
@@ -495,10 +486,10 @@ const NavbarHandle = ({ collapsed, onToggle }) => (
         className="
           absolute
 
+          bottom-[3px]
           left-[3px]
           right-[3px]
           top-0
-          bottom-[3px]
 
           bg-[#f3f4f6]
 
@@ -597,6 +588,14 @@ const NavBar = ({ collapsed = false, onToggle, onHeightChange }) => {
   );
 
   /* =======================================================
+     LOGOUT MODAL STATE
+  ======================================================= */
+
+  const [logoutOpen, setLogoutOpen] = useState(false);
+
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  /* =======================================================
      MEASURE NAVBAR
   ======================================================= */
 
@@ -640,7 +639,20 @@ const NavBar = ({ collapsed = false, onToggle, onHeightChange }) => {
 
   useEffect(() => {
     const handleAuthChange = () => {
-      setIsAuthenticated(Boolean(localStorage.getItem("token")));
+      const authenticated = Boolean(localStorage.getItem("token"));
+
+      setIsAuthenticated(authenticated);
+
+      /*
+       * If another tab logs this user out,
+       * do not leave a stale logout modal open.
+       */
+
+      if (!authenticated) {
+        setLogoutOpen(false);
+
+        setLoggingOut(false);
+      }
     };
 
     window.addEventListener("local-auth-update", handleAuthChange);
@@ -655,23 +667,59 @@ const NavBar = ({ collapsed = false, onToggle, onHeightChange }) => {
   }, []);
 
   /* =======================================================
-     LOGOUT
+     REQUEST LOGOUT
   ======================================================= */
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
+  const handleLogoutRequest = () => {
+    if (loggingOut) {
+      return;
+    }
 
-    localStorage.removeItem("id");
+    setLogoutOpen(true);
+  };
 
-    localStorage.removeItem("role");
+  /* =======================================================
+     CANCEL LOGOUT
+  ======================================================= */
 
-    localStorage.removeItem("firstName");
+  const handleLogoutCancel = () => {
+    if (loggingOut) {
+      return;
+    }
 
-    localStorage.removeItem("user");
+    setLogoutOpen(false);
+  };
 
-    window.dispatchEvent(new Event("local-auth-update"));
+  /* =======================================================
+     CONFIRM LOGOUT
+  ======================================================= */
 
-    navigate("/");
+  const handleLogoutConfirm = () => {
+    if (loggingOut) {
+      return;
+    }
+
+    setLoggingOut(true);
+
+    /*
+     * LOCAL SESSION ONLY.
+     *
+     * This must not:
+     * - delete BuddyState
+     * - delete berries
+     * - delete profile data
+     * - delete RotomAI history
+     *
+     * Those remain persisted in MongoDB.
+     */
+
+    clearAuthSession();
+
+    setLogoutOpen(false);
+
+    navigate("/", {
+      replace: true,
+    });
   };
 
   /* =======================================================
@@ -679,319 +727,316 @@ const NavBar = ({ collapsed = false, onToggle, onHeightChange }) => {
   ======================================================= */
 
   return (
-    <div
-      className="
-        fixed
-        inset-x-0
-        top-0
-        z-50
-
-        transition-transform
-        duration-300
-
-        ease-[cubic-bezier(.4,0,.2,1)]
-
-        will-change-transform
-      "
-      style={{
-        transform:
-          collapsed && navbarHeight > 0
-            ? `translateY(-${navbarHeight}px)`
-            : "translateY(0)",
-      }}
-    >
-      {/* =================================================
-          NAVBAR
-      ================================================== */}
-
-      <header
-        ref={headerRef}
+    <>
+      <div
         className="
-          relative
+          fixed
+          inset-x-0
+          top-0
+          z-50
 
-          border-b-[5px]
-          border-zinc-950
+          transition-transform
+          duration-300
 
-          bg-[#f3f4f6]
+          ease-[cubic-bezier(.4,0,.2,1)]
 
-          shadow-[0_4px_12px_rgba(0,0,0,0.08)]
+          will-change-transform
         "
+        style={{
+          transform:
+            collapsed && navbarHeight > 0
+              ? `translateY(-${navbarHeight}px)`
+              : "translateY(0)",
+        }}
       >
         {/* ===============================================
-            HARDWARE STRIP
+            NAVBAR
         ================================================ */}
 
-        <div
-          className="
-            flex
-            h-6
-            w-full
-            items-center
-            gap-3
-
-            border-b-2
-            border-black/20
-
-            bg-[#cc0000]
-
-            px-3
-
-            sm:px-6
-          "
-        >
-          {/* BLUE SENSOR */}
-
-          <span
-            className="
-              h-3
-              w-3
-
-              animate-pulse
-
-              rounded-full
-
-              border-2
-              border-white
-
-              bg-blue-400
-
-              shadow-[0_0_8px_#60a5fa]
-            "
-          />
-
-          {/* STATUS LIGHTS */}
-
-          <div
-            className="
-              flex
-              gap-1.5
-            "
-          >
-            <span
-              className="
-                h-2
-                w-2
-
-                rounded-full
-
-                border
-                border-black/20
-
-                bg-[#ff1c1c]
-              "
-            />
-
-            <span
-              className="
-                h-2
-                w-2
-
-                rounded-full
-
-                border
-                border-black/20
-
-                bg-[#ffcb05]
-              "
-            />
-
-            <span
-              className="
-                h-2
-                w-2
-
-                rounded-full
-
-                border
-                border-black/20
-
-                bg-[#4dad5b]
-              "
-            />
-          </div>
-
-          {/* RIGHT HARDWARE */}
-
-          <div
-            className="
-              ml-auto
-
-              flex
-              items-center
-              gap-3
-            "
-          >
-            <span
-              className="
-                hidden
-
-                font-mono
-
-                text-[6px]
-                font-black
-                uppercase
-                tracking-[0.18em]
-
-                text-white/45
-
-                sm:block
-              "
-            >
-              ROTOM SYSTEM
-            </span>
-
-            <span
-              className="
-                h-1
-                w-12
-
-                rounded-full
-
-                bg-black/20
-              "
-            />
-          </div>
-        </div>
-
-        {/* ===============================================
-            MOBILE
-        ================================================ */}
-
-        <div
-          className="
-            mx-auto
-            w-full
-            max-w-7xl
-
-            sm:hidden
-          "
-        >
-          {/* =============================================
-              MOBILE IDENTITY ROW
-
-              Logo on left.
-              Auth status/action on right.
-
-              This keeps account state separate from
-              the three actual page destinations.
-          ============================================== */}
-
-          <div
-            className="
-              flex
-              min-h-[58px]
-              items-center
-              justify-between
-              gap-3
-
-              px-3
-              py-2
-            "
-          >
-            <RotomLogo />
-
-            <AuthButton
-              mobile
-              isAuthenticated={isAuthenticated}
-              onLogout={handleLogout}
-            />
-          </div>
-
-          {/* =============================================
-              MOBILE NAVIGATION
-
-              Three equal buttons.
-              No 4-column squeeze.
-              No 2x2 layout.
-          ============================================== */}
-
-          <nav
-            className="
-              grid
-              grid-cols-3
-              gap-1.5
-
-              border-t
-              border-zinc-300
-
-              bg-zinc-200/70
-
-              px-3
-              py-2
-            "
-          >
-            <NavButtons mobile />
-          </nav>
-        </div>
-
-        {/* ===============================================
-            TABLET / DESKTOP
-        ================================================ */}
-
-        <div
+        <header
+          ref={headerRef}
           className="
             relative
 
-            mx-auto
+            border-b-[5px]
+            border-zinc-950
 
-            hidden
-            h-20
-            max-w-7xl
+            bg-[#f3f4f6]
 
-            items-center
-            justify-between
-            gap-4
-
-            px-6
-
-            sm:flex
-
-            lg:px-8
+            shadow-[0_4px_12px_rgba(0,0,0,0.08)]
           "
         >
-          {/* LOGO */}
+          {/* =============================================
+              HARDWARE STRIP
+          ============================================== */}
 
-          <RotomLogo />
-
-          {/* NAVIGATION */}
-
-          <nav
+          <div
             className="
               flex
+              h-6
+              w-full
               items-center
-              justify-center
-              gap-1
+              gap-3
 
-              rounded-xl
+              border-b-2
+              border-black/20
 
-              border
-              border-zinc-900/5
+              bg-[#cc0000]
 
-              bg-zinc-200/50
+              px-3
 
-              p-1
-
-              shadow-inner
+              sm:px-6
             "
           >
-            <NavButtons />
-          </nav>
+            {/* BLUE SENSOR */}
 
-          {/* AUTH */}
+            <span
+              className="
+                h-3
+                w-3
 
-          <AuthButton
-            isAuthenticated={isAuthenticated}
-            onLogout={handleLogout}
-          />
-        </div>
-      </header>
+                animate-pulse
+
+                rounded-full
+
+                border-2
+                border-white
+
+                bg-blue-400
+
+                shadow-[0_0_8px_#60a5fa]
+              "
+            />
+
+            {/* STATUS LIGHTS */}
+
+            <div className="flex gap-1.5">
+              <span
+                className="
+                  h-2
+                  w-2
+
+                  rounded-full
+
+                  border
+                  border-black/20
+
+                  bg-[#ff1c1c]
+                "
+              />
+
+              <span
+                className="
+                  h-2
+                  w-2
+
+                  rounded-full
+
+                  border
+                  border-black/20
+
+                  bg-[#ffcb05]
+                "
+              />
+
+              <span
+                className="
+                  h-2
+                  w-2
+
+                  rounded-full
+
+                  border
+                  border-black/20
+
+                  bg-[#4dad5b]
+                "
+              />
+            </div>
+
+            {/* RIGHT HARDWARE */}
+
+            <div
+              className="
+                ml-auto
+
+                flex
+                items-center
+                gap-3
+              "
+            >
+              <span
+                className="
+                  hidden
+
+                  font-mono
+
+                  text-[6px]
+                  font-black
+                  uppercase
+                  tracking-[0.18em]
+
+                  text-white/45
+
+                  sm:block
+                "
+              >
+                ROTOM SYSTEM
+              </span>
+
+              <span
+                className="
+                  h-1
+                  w-12
+
+                  rounded-full
+
+                  bg-black/20
+                "
+              />
+            </div>
+          </div>
+
+          {/* =============================================
+              MOBILE
+          ============================================== */}
+
+          <div
+            className="
+              mx-auto
+              w-full
+              max-w-7xl
+
+              sm:hidden
+            "
+          >
+            {/* IDENTITY */}
+
+            <div
+              className="
+                flex
+                min-h-[58px]
+                items-center
+                justify-between
+                gap-3
+
+                px-3
+                py-2
+              "
+            >
+              <RotomLogo />
+
+              <AuthButton
+                mobile
+                isAuthenticated={isAuthenticated}
+                onLogout={handleLogoutRequest}
+              />
+            </div>
+
+            {/* NAVIGATION */}
+
+            <nav
+              className="
+                grid
+                grid-cols-3
+                gap-1.5
+
+                border-t
+                border-zinc-300
+
+                bg-zinc-200/70
+
+                px-3
+                py-2
+              "
+            >
+              <NavButtons mobile />
+            </nav>
+          </div>
+
+          {/* =============================================
+              TABLET / DESKTOP
+          ============================================== */}
+
+          <div
+            className="
+              relative
+
+              mx-auto
+
+              hidden
+              h-20
+              max-w-7xl
+
+              items-center
+              justify-between
+              gap-4
+
+              px-6
+
+              sm:flex
+
+              lg:px-8
+            "
+          >
+            {/* LOGO */}
+
+            <RotomLogo />
+
+            {/* NAVIGATION */}
+
+            <nav
+              className="
+                flex
+                items-center
+                justify-center
+                gap-1
+
+                rounded-xl
+
+                border
+                border-zinc-900/5
+
+                bg-zinc-200/50
+
+                p-1
+
+                shadow-inner
+              "
+            >
+              <NavButtons />
+            </nav>
+
+            {/* AUTH */}
+
+            <AuthButton
+              isAuthenticated={isAuthenticated}
+              onLogout={handleLogoutRequest}
+            />
+          </div>
+        </header>
+
+        {/* ===============================================
+            CONNECTED NAVBAR HANDLE
+        ================================================ */}
+
+        <NavbarHandle collapsed={collapsed} onToggle={onToggle} />
+      </div>
 
       {/* =================================================
-          CONNECTED NAVBAR HANDLE
+          LOGOUT CONFIRMATION
+
+          Modal uses a React portal, so it stays fullscreen
+          even though the navbar itself is transformed.
       ================================================== */}
 
-      <NavbarHandle collapsed={collapsed} onToggle={onToggle} />
-    </div>
+      <LogoutConfirmModal
+        open={logoutOpen}
+        loading={loggingOut}
+        onClose={handleLogoutCancel}
+        onConfirm={handleLogoutConfirm}
+      />
+    </>
   );
 };
 

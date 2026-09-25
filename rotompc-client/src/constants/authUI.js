@@ -10,6 +10,19 @@
    - stronger focus state
 ========================================================= */
 
+export const AUTH_SUCCESS_CLASS = `
+  rounded-xl
+  border-2
+  border-green-500
+  bg-green-50
+  px-4
+  py-3
+  text-sm
+  font-bold
+  text-green-800
+  shadow-[2px_2px_0_rgba(22,101,52,0.16)]
+`;
+
 export const AUTH_INPUT_CLASS = `
   mt-2
   block
