@@ -27,10 +27,6 @@ export default defineConfig({
 
       includeAssets: [
         "rotompc-icon.svg",
-        "rotompc-icon-192.png",
-        "rotompc-icon-512.png",
-        "rotompc-icon-maskable-512.png",
-        "rotompc-apple-touch-icon.png",
       ],
 
       manifest: {
@@ -56,30 +52,12 @@ export default defineConfig({
         icons: [
           {
             src: "/rotompc-icon.svg",
+
             sizes: "any",
+
             type: "image/svg+xml",
-            purpose: "any",
-          },
 
-          {
-            src: "/rotompc-icon-192.png",
-            sizes: "192x192",
-            type: "image/png",
             purpose: "any",
-          },
-
-          {
-            src: "/rotompc-icon-512.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "any",
-          },
-
-          {
-            src: "/rotompc-icon-maskable-512.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "maskable",
           },
         ],
       },
@@ -90,23 +68,16 @@ export default defineConfig({
         navigateFallback: "/index.html",
 
         runtimeCaching: [
-          /*
-           * RotomPC backend.
-           *
-           * Never cache authenticated or server-authoritative
-           * API responses.
-           */
           {
-            urlPattern: /^https:\/\/rotompc-server\.vercel\.app\/api\//,
+            urlPattern:
+              /^https:\/\/rotompc-server\.vercel\.app\/api\//,
 
             handler: "NetworkOnly",
           },
 
-          /*
-           * PokeAPI.
-           */
           {
-            urlPattern: /^https:\/\/pokeapi\.co\/api\/v2\//,
+            urlPattern:
+              /^https:\/\/pokeapi\.co\/api\/v2\//,
 
             handler: "NetworkFirst",
 
@@ -118,16 +89,15 @@ export default defineConfig({
               expiration: {
                 maxEntries: 150,
 
-                maxAgeSeconds: 60 * 60 * 24,
+                maxAgeSeconds:
+                  60 * 60 * 24,
               },
             },
           },
 
-          /*
-           * Images.
-           */
           {
-            urlPattern: /\.(?:png|jpg|jpeg|svg|webp|gif)$/i,
+            urlPattern:
+              /\.(?:png|jpg|jpeg|svg|webp|gif)$/i,
 
             handler: "CacheFirst",
 
@@ -137,7 +107,8 @@ export default defineConfig({
               expiration: {
                 maxEntries: 250,
 
-                maxAgeSeconds: 60 * 60 * 24 * 30,
+                maxAgeSeconds:
+                  60 * 60 * 24 * 30,
               },
             },
           },
