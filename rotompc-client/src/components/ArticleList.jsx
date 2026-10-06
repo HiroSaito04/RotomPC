@@ -1,12 +1,16 @@
-// rotompc-client/src/components/ArticleList.jsx
+// filepath: rotompc-client/src/components/ArticleList.jsx
 
-import React, { useEffect, useMemo, useState } from "react";
-
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import Button from "@/components/Button";
+import TrainerProfilePicture from "@/components/profile/TrainerProfilePicture";
+import TrainerProfileModal from "@/components/social/TrainerProfileModal";
 
 import * as articleService from "@/services/ArticleService";
+
+/* =========================================================
+   CONFIG
+========================================================= */
 
 const FALLBACK_IMAGE =
   "https://ik.imagekit.io/ytwzizvepv/RotomPC/placeholder.png";
@@ -32,15 +36,61 @@ const getLikesCount = (article) => {
 };
 
 const getOwnerId = (article) => {
-  if (article?.userId && typeof article.userId === "object") {
-    return article.userId._id || article.userId.id || null;
+  if (!article?.userId) {
+    return "";
   }
 
-  return article?.userId || null;
+  if (typeof article.userId === "object") {
+    return article.userId._id || article.userId.id || "";
+  }
+
+  return article.userId;
+};
+
+const getRelativeTime = (value) => {
+  const raw = value?.$date || value;
+
+  const date = new Date(raw);
+
+  if (Number.isNaN(date.getTime())) {
+    return "RECENT";
+  }
+
+  const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+
+  if (seconds < 60) {
+    return "JUST NOW";
+  }
+
+  const units = [
+    ["YEAR", 31536000],
+    ["MONTH", 2592000],
+    ["WEEK", 604800],
+    ["DAY", 86400],
+    ["HOUR", 3600],
+    ["MIN", 60],
+  ];
+
+  for (const [label, amount] of units) {
+    if (seconds >= amount) {
+      const total = Math.floor(seconds / amount);
+
+      return `${total} ${label}${total === 1 ? "" : "S"} AGO`;
+    }
+  }
+
+  return "RECENT";
 };
 
 /* =========================================================
-   IMAGE
+   ARTICLE IMAGE
+
+   IMPORTANT:
+   - Outer image box keeps the existing 16 / 10 size.
+   - Original image ratio is preserved.
+   - Images are never cropped.
+   - Empty space is intentional.
+   - Image has an inset border with padding.
 ========================================================= */
 
 const ArticleImage = ({ article, getImage }) => {
@@ -48,11 +98,11 @@ const ArticleImage = ({ article, getImage }) => {
 
   const imageSource = getImage
     ? getImage(article)
-    : article?.image || article?.imageFallbackUrl || FALLBACK_IMAGE;
+    : article?.imageUrl || article?.image || FALLBACK_IMAGE;
 
   useEffect(() => {
     setFailed(false);
-  }, [article?._id, imageSource]);
+  }, [imageSource, article?._id]);
 
   return (
     <div
@@ -63,83 +113,73 @@ const ArticleImage = ({ article, getImage }) => {
         border-b-[3px]
         border-zinc-950
         bg-zinc-200
+        p-3
       "
     >
-      {!failed ? (
-        <img
-          src={imageSource || FALLBACK_IMAGE}
-          alt={article?.title || "PokéSocial report"}
-          loading="lazy"
-          onError={() => setFailed(true)}
-          className="
-            h-full
-            w-full
-            object-cover
-            transition-transform
-            duration-500
-            group-hover:scale-[1.04]
-          "
-        />
-      ) : (
-        <div
-          className="
-            flex
-            h-full
-            w-full
-            flex-col
-            items-center
-            justify-center
-            bg-zinc-100
-            text-zinc-400
-          "
-        >
-          <span
+      <div
+        className="
+          relative
+          h-full
+          w-full
+          overflow-hidden
+          rounded-xl
+          border-[3px]
+          border-zinc-950
+          bg-white
+          p-2
+          shadow-[3px_3px_0_rgba(24,24,27,0.18)]
+        "
+      >
+        {!failed ? (
+          <img
+            src={imageSource || FALLBACK_IMAGE}
+            alt={article?.title || "PokéSocial report"}
+            loading="lazy"
+            onError={() => setFailed(true)}
             className="
+              block
+              h-full
+              w-full
+              object-contain
+              object-center
+              transition-transform
+              duration-500
+              group-hover:scale-[1.015]
+            "
+          />
+        ) : (
+          <div
+            className="
+              flex
+              h-full
+              w-full
+              items-center
+              justify-center
+              rounded-lg
+              bg-zinc-100
               text-4xl
               font-black
+              text-zinc-400
             "
           >
             R
-          </span>
+          </div>
+        )}
 
-          <span
-            className="
-              mt-2
-              text-[8px]
-              font-black
-              uppercase
-              tracking-[0.14em]
-            "
-          >
-            Report Image
-          </span>
-        </div>
-      )}
-
-      <div
-        aria-hidden="true"
-        className="
-          pointer-events-none
-          absolute
-          inset-0
-          bg-gradient-to-t
-          from-black/20
-          via-transparent
-          to-transparent
-        "
-      />
-
-      <div
-        aria-hidden="true"
-        className="
-          pointer-events-none
-          absolute
-          inset-0
-          opacity-[0.06]
-          bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,.35)_50%)]
-          bg-[length:100%_4px]
-        "
-      />
+        <div
+          aria-hidden="true"
+          className="
+            pointer-events-none
+            absolute
+            inset-2
+            rounded-lg
+            bg-gradient-to-t
+            from-black/[0.04]
+            via-transparent
+            to-white/[0.04]
+          "
+        />
+      </div>
     </div>
   );
 };
@@ -151,31 +191,27 @@ const ArticleImage = ({ article, getImage }) => {
 const ArticleList = ({ articles = [], getImage, onArticleUpdate }) => {
   const navigate = useNavigate();
 
-  const [visibleArticles, setVisibleArticles] = useState([]);
-
   const [interactions, setInteractions] = useState({});
 
-  const [pendingArticleId, setPendingArticleId] = useState(null);
+  const [pendingArticleId, setPendingArticleId] = useState("");
 
   const [feedback, setFeedback] = useState({});
 
-  const [isAuthenticated, setIsAuthenticated] = useState(
+  const [selectedTrainer, setSelectedTrainer] = useState(null);
+
+  const [isAuthenticated, setIsAuthenticated] = useState(() =>
     Boolean(localStorage.getItem("token")),
   );
 
-  const [currentUserId, setCurrentUserId] = useState(
-    localStorage.getItem("id"),
-  );
+  const currentUserId = localStorage.getItem("id");
 
   /* =======================================================
-     AUTH
+     AUTH SYNC
   ======================================================= */
 
   useEffect(() => {
     const syncAuth = () => {
       setIsAuthenticated(Boolean(localStorage.getItem("token")));
-
-      setCurrentUserId(localStorage.getItem("id"));
     };
 
     window.addEventListener("storage", syncAuth);
@@ -190,30 +226,26 @@ const ArticleList = ({ articles = [], getImage, onArticleUpdate }) => {
   }, []);
 
   /* =======================================================
-     ARTICLE SYNC
+     SYNC BASIC COUNTS
   ======================================================= */
 
   useEffect(() => {
-    const list = Array.isArray(articles) ? articles : [];
-
-    setVisibleArticles(list);
-
     setInteractions((current) => {
       const next = {
         ...current,
       };
 
-      list.forEach((article) => {
+      articles.forEach((article) => {
         if (!article?._id) {
           return;
         }
 
-        const old = current[article._id];
+        const existing = current[article._id];
 
         next[article._id] = {
-          liked: old?.liked ?? Boolean(article.liked),
+          liked: existing?.liked ?? Boolean(article.liked),
 
-          likesCount: old?.likesCount ?? getLikesCount(article),
+          likesCount: existing?.likesCount ?? getLikesCount(article),
         };
       });
 
@@ -221,19 +253,23 @@ const ArticleList = ({ articles = [], getImage, onArticleUpdate }) => {
     });
   }, [articles]);
 
-  const visibleArticleIds = useMemo(
-    () => visibleArticles.map((article) => article?._id).filter(Boolean),
-    [visibleArticles],
+  /* =======================================================
+     VISIBLE ARTICLE IDS
+  ======================================================= */
+
+  const ids = useMemo(
+    () => articles.map((article) => article?._id).filter(Boolean),
+    [articles],
   );
 
-  const visibleArticleKey = visibleArticleIds.join(",");
+  const idsKey = ids.join(",");
 
   /* =======================================================
-     LIKE STATUS
+     LOAD LIKE STATUS
   ======================================================= */
 
   useEffect(() => {
-    if (!isAuthenticated || visibleArticleIds.length === 0) {
+    if (!isAuthenticated || ids.length === 0) {
       return undefined;
     }
 
@@ -241,11 +277,11 @@ const ArticleList = ({ articles = [], getImage, onArticleUpdate }) => {
 
     const loadStatuses = async () => {
       const results = await Promise.allSettled(
-        visibleArticleIds.map(async (articleId) => {
-          const response = await articleService.getArticleLikeStatus(articleId);
+        ids.map(async (id) => {
+          const response = await articleService.getArticleLikeStatus(id);
 
           return {
-            articleId,
+            id,
 
             liked: Boolean(response.data?.liked),
 
@@ -265,7 +301,7 @@ const ArticleList = ({ articles = [], getImage, onArticleUpdate }) => {
           return;
         }
 
-        updates[result.value.articleId] = {
+        updates[result.value.id] = {
           liked: result.value.liked,
 
           likesCount: result.value.likesCount,
@@ -283,62 +319,7 @@ const ArticleList = ({ articles = [], getImage, onArticleUpdate }) => {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, visibleArticleKey]);
-
-  /* =======================================================
-     TIME
-  ======================================================= */
-
-  const getRelativeTime = (value) => {
-    if (!value) {
-      return "RECENT";
-    }
-
-    try {
-      const dateValue =
-        typeof value === "object" && value.$date ? value.$date : value;
-
-      const created = new Date(dateValue);
-
-      if (Number.isNaN(created.getTime())) {
-        return "RECENT";
-      }
-
-      const seconds = Math.max(
-        0,
-        Math.floor((Date.now() - created.getTime()) / 1000),
-      );
-
-      if (seconds < 60) {
-        return "JUST NOW";
-      }
-
-      const intervals = [
-        ["year", 31536000],
-        ["month", 2592000],
-        ["week", 604800],
-        ["day", 86400],
-        ["hour", 3600],
-        ["minute", 60],
-      ];
-
-      for (const [label, amount] of intervals) {
-        const count = Math.floor(seconds / amount);
-
-        if (count >= 1) {
-          return new Intl.RelativeTimeFormat("en", {
-            numeric: "always",
-          })
-            .format(-count, label)
-            .toUpperCase();
-        }
-      }
-
-      return "JUST NOW";
-    } catch {
-      return "RECENT";
-    }
-  };
+  }, [idsKey, isAuthenticated]);
 
   /* =======================================================
      FEEDBACK
@@ -364,15 +345,19 @@ const ArticleList = ({ articles = [], getImage, onArticleUpdate }) => {
 
         return next;
       });
-    }, 2000);
+    }, 2200);
   };
 
   /* =======================================================
      LIKE
   ======================================================= */
 
-  const handleLikeToggle = async (article) => {
-    if (!article?._id) {
+  const handleLike = async (event, article) => {
+    event.stopPropagation();
+
+    const articleId = article?._id;
+
+    if (!articleId || pendingArticleId === articleId) {
       return;
     }
 
@@ -385,80 +370,117 @@ const ArticleList = ({ articles = [], getImage, onArticleUpdate }) => {
     const ownerId = getOwnerId(article);
 
     if (ownerId && currentUserId && String(ownerId) === String(currentUserId)) {
-      showFeedback(article._id, "You cannot like your own report", "error");
+      showFeedback(articleId, "You cannot like your own report.", "error");
 
       return;
     }
 
-    if (pendingArticleId === article._id) {
-      return;
-    }
-
-    const currentState = interactions[article._id] || {
-      liked: Boolean(article.liked),
+    const current = interactions[articleId] || {
+      liked: false,
 
       likesCount: getLikesCount(article),
     };
 
-    setPendingArticleId(article._id);
-
     try {
-      const response = currentState.liked
-        ? await articleService.unlikeArticle(article._id)
-        : await articleService.likeArticle(article._id);
+      setPendingArticleId(articleId);
 
-      const nextState = {
+      const response = current.liked
+        ? await articleService.unlikeArticle(articleId)
+        : await articleService.likeArticle(articleId);
+
+      const next = {
         liked: Boolean(response.data?.liked),
 
         likesCount: Number(response.data?.likesCount) || 0,
       };
 
-      setInteractions((current) => ({
-        ...current,
+      setInteractions((state) => ({
+        ...state,
 
-        [article._id]: nextState,
+        [articleId]: next,
       }));
 
-      setVisibleArticles((current) =>
-        current.map((item) =>
-          String(item._id) === String(article._id)
-            ? {
-                ...item,
-                ...nextState,
-              }
-            : item,
-        ),
-      );
+      onArticleUpdate?.(articleId, next);
 
-      if (typeof onArticleUpdate === "function") {
-        onArticleUpdate(article._id, nextState);
-      }
+      const reward = Number(response.data?.berryReward) || 0;
 
-      const berryReward = Number(response.data?.berryReward) || 0;
-
-      if (berryReward > 0) {
-        showFeedback(article._id, `+${berryReward} Berry`, "reward");
-      } else {
-        showFeedback(
-          article._id,
-          nextState.liked ? "Report liked" : "Like removed",
-        );
+      if (reward > 0) {
+        showFeedback(articleId, `+${reward} Berry`, "reward");
       }
     } catch (error) {
-      console.error("Unable to update like:", error);
+      console.error("Article like error:", error);
 
       showFeedback(
-        article._id,
-        error.response?.data?.message || "Unable to update like",
+        articleId,
+        error.response?.data?.message || "Unable to update like.",
         "error",
       );
     } finally {
-      setPendingArticleId(null);
+      setPendingArticleId("");
     }
   };
 
-  if (visibleArticles.length === 0) {
-    return null;
+  /* =======================================================
+     TRAINER PROFILE
+  ======================================================= */
+
+  const openTrainer = (event, article) => {
+    event.stopPropagation();
+
+    const ownerId = getOwnerId(article);
+
+    if (!ownerId) {
+      return;
+    }
+
+    setSelectedTrainer({
+      id: ownerId,
+
+      username: article.author || "",
+    });
+  };
+
+  /* =======================================================
+     OPEN ARTICLE
+  ======================================================= */
+
+  const openArticle = (article) => {
+    if (!article?.name) {
+      return;
+    }
+
+    navigate(`/articles/${encodeURIComponent(article.name)}`);
+  };
+
+  /* =======================================================
+     EMPTY
+  ======================================================= */
+
+  if (!Array.isArray(articles) || articles.length === 0) {
+    return (
+      <div
+        className="
+          rounded-3xl
+          border-4
+          border-dashed
+          border-zinc-300
+          bg-white
+          px-6
+          py-16
+          text-center
+        "
+      >
+        <p
+          className="
+            text-lg
+            font-black
+            text-zinc-950
+          "
+        >
+          No PokéSocial reports found.
+        </p>
+      </div>
+    );
   }
 
   /* =======================================================
@@ -466,46 +488,38 @@ const ArticleList = ({ articles = [], getImage, onArticleUpdate }) => {
   ======================================================= */
 
   return (
-    <div
-      className="
-        grid
-        grid-cols-1
-        gap-6
-        md:grid-cols-2
-        xl:grid-cols-4
-      "
-    >
-      {visibleArticles.map((article, index) => {
-        if (!article) {
-          return null;
-        }
+    <>
+      <div
+        className="
+          grid
+          gap-5
+          sm:grid-cols-2
+          lg:grid-cols-3
+          xl:grid-cols-4
+        "
+      >
+        {articles.map((article, index) => {
+          const interaction = interactions[article._id] || {
+            liked: Boolean(article.liked),
 
-        const articleKey = article._id || article.id || article.name || index;
+            likesCount: getLikesCount(article),
+          };
 
-        const routeName = article.name || article._id || article.id;
+          const ownerId = getOwnerId(article);
 
-        const interaction = interactions[article._id] || {
-          liked: Boolean(article.liked),
+          const ownArticle = Boolean(
+            currentUserId &&
+            ownerId &&
+            String(currentUserId) === String(ownerId),
+          );
 
-          likesCount: getLikesCount(article),
-        };
+          const message = feedback[article._id];
 
-        const isPending = pendingArticleId === article._id;
-
-        const ownerId = getOwnerId(article);
-
-        const isOwnArticle = Boolean(
-          ownerId && currentUserId && String(ownerId) === String(currentUserId),
-        );
-
-        const articleFeedback = feedback[article._id];
-
-        return (
-          <article
-            key={articleKey}
-            className="
+          return (
+            <article
+              key={article._id || article.name || index}
+              className="
                 group
-                relative
                 flex
                 min-w-0
                 flex-col
@@ -520,134 +534,159 @@ const ArticleList = ({ articles = [], getImage, onArticleUpdate }) => {
                 hover:-translate-y-1
                 hover:shadow-[8px_8px_0_#18181b]
               "
-          >
-            <div
-              className="
+            >
+              {/* =========================================
+                  HARDWARE TOP
+              ========================================== */}
+
+              <div
+                className="
                   flex
                   h-3
                   items-center
                   gap-1
-                  border-b-2
-                  border-zinc-950
                   bg-zinc-950
                   px-3
                 "
-            >
-              <span
-                className="
+              >
+                <span
+                  className="
                     h-1.5
                     w-1.5
                     rounded-full
                     bg-red-500
                   "
-              />
+                />
 
-              <span
-                className="
+                <span
+                  className="
                     h-1.5
                     w-1.5
                     rounded-full
                     bg-yellow-400
                   "
-              />
+                />
 
-              <span
-                className="
+                <span
+                  className="
                     h-1.5
                     w-1.5
                     rounded-full
                     bg-green-500
                   "
-              />
-            </div>
+                />
+              </div>
 
-            <div
-              className="
+              {/* =========================================
+                  AUTHOR
+              ========================================== */}
+
+              <button
+                type="button"
+                disabled={!ownerId}
+                onClick={(event) => openTrainer(event, article)}
+                className="
                   flex
+                  w-full
                   items-center
                   gap-3
                   px-4
                   py-3.5
+                  text-left
+                  transition
+                  hover:bg-yellow-50
+                  disabled:cursor-default
+                  disabled:hover:bg-transparent
                 "
-            >
-              <div
-                className={`
-                    flex
-                    h-10
-                    w-10
-                    shrink-0
-                    items-center
-                    justify-center
-                    rounded-xl
-                    border-2
-                    border-zinc-950
+              >
+                <TrainerProfilePicture
+                  userId={ownerId}
+                  username={article.author || ""}
+                  size="sm"
+                  roundedClassName="rounded-xl"
+                  className="
+                    shadow-[2px_2px_0_#18181b]
+                  "
+                  fallbackClassName={`
                     ${article.color || "bg-zinc-500"}
                     text-xs
-                    font-black
-                    uppercase
-                    text-white
-                    shadow-[2px_2px_0_#18181b]
                   `}
-              >
-                {article.author ? article.author.charAt(0).toUpperCase() : "?"}
-              </div>
+                />
 
-              <div
-                className="
+                <div
+                  className="
                     min-w-0
                     flex-1
                   "
-              >
-                <p
-                  className="
+                >
+                  <p
+                    className="
                       truncate
                       text-[11px]
                       font-black
                       uppercase
                       text-zinc-950
                     "
-                >
-                  {article.author || "Unknown Trainer"}
-                </p>
+                  >
+                    {article.author || "Unknown Trainer"}
+                  </p>
 
-                <p
-                  className="
+                  <p
+                    className="
                       mt-1
-                      truncate
                       text-[8px]
                       font-bold
                       uppercase
                       tracking-[0.09em]
                       text-zinc-400
                     "
-                >
-                  {getRelativeTime(article.createdAt)}
-                </p>
-              </div>
-            </div>
+                  >
+                    {getRelativeTime(article.createdAt)}
+                  </p>
+                </div>
 
-            <ArticleImage article={article} getImage={getImage} />
+                {ownerId && (
+                  <span
+                    className="
+                      text-[8px]
+                      font-black
+                      uppercase
+                      text-[#3b4cca]
+                    "
+                  >
+                    View
+                  </span>
+                )}
+              </button>
 
-            <div
-              className="
+              {/* =========================================
+                  IMAGE
+              ========================================== */}
+
+              <ArticleImage article={article} getImage={getImage} />
+
+              {/* =========================================
+                  BODY
+              ========================================== */}
+
+              <div
+                className="
                   flex
                   flex-1
                   flex-col
                   p-4
                 "
-            >
-              <div
-                className="
+              >
+                <div
+                  className="
                     flex
                     items-center
                     justify-between
                     gap-2
                   "
-              >
-                <span
-                  className={`
-                      max-w-[65%]
-                      truncate
+                >
+                  <span
+                    className={`
                       rounded-lg
                       border-2
                       border-zinc-950
@@ -657,137 +696,212 @@ const ArticleList = ({ articles = [], getImage, onArticleUpdate }) => {
                       text-[7px]
                       font-black
                       uppercase
-                      tracking-[0.08em]
                       text-white
                       shadow-[2px_2px_0_#18181b]
                     `}
-                >
-                  {article.date || "RECENT"}
-                </span>
+                  >
+                    {article.date || "RECENT"}
+                  </span>
 
-                <span
-                  className={`
-                      shrink-0
+                  <span
+                    className={`
                       text-[9px]
                       font-black
                       ${interaction.liked ? "text-red-500" : "text-zinc-400"}
                     `}
-                >
-                  {interaction.liked ? "♥" : "♡"} {interaction.likesCount}
-                </span>
-              </div>
+                  >
+                    {interaction.liked ? "♥" : "♡"} {interaction.likesCount}
+                  </span>
+                </div>
 
-              <h3
-                className="
+                <h3
+                  className="
                     mt-4
                     line-clamp-2
-                    text-lg
+                    text-xl
                     font-black
                     uppercase
-                    leading-[1.05]
-                    tracking-[-0.025em]
+                    italic
+                    leading-tight
                     text-zinc-950
-                    sm:text-xl
                   "
-              >
-                {article.title}
-              </h3>
+                >
+                  {article.title || "Untitled Report"}
+                </h3>
 
-              {article.desc && (
                 <p
                   className="
-                      mt-2.5
-                      line-clamp-3
-                      text-[13px]
-                      font-medium
-                      leading-5
-                      text-zinc-500
-                    "
+                    mt-2
+                    line-clamp-3
+                    text-sm
+                    font-semibold
+                    leading-5
+                    text-zinc-500
+                  "
                 >
-                  {article.desc}
+                  {article.desc || "Open this report to read more."}
                 </p>
-              )}
 
-              {articleFeedback && (
                 <div
-                  className={`
-                      mt-4
-                      rounded-lg
-                      border-2
-                      px-3
-                      py-2
-                      text-center
-                      text-[9px]
-                      font-black
-                      uppercase
-                      ${
-                        articleFeedback.type === "reward"
-                          ? "border-green-600 bg-green-50 text-green-700"
-                          : articleFeedback.type === "error"
-                            ? "border-red-600 bg-red-50 text-red-700"
-                            : "border-zinc-300 bg-zinc-50 text-zinc-600"
-                      }
-                    `}
-                >
-                  {articleFeedback.message}
-                </div>
-              )}
-
-              <div
-                className="
+                  className="
                     mt-auto
-                    grid
-                    grid-cols-[minmax(0,1fr)_44px]
-                    gap-2.5
+                    flex
+                    items-center
+                    gap-2
                     pt-5
                   "
-              >
-                <Button
-                  to={routeName ? `/articles/${routeName}` : "/articles"}
-                  variant="secondary"
-                  size="md"
-                  className="
-                      w-full
-                      !justify-center
-                      font-black
-                    "
                 >
-                  View Post
-                </Button>
+                  {/* =====================================
+                      OPEN REPORT
+                  ====================================== */}
+                  <button
+                    type="button"
+                    onClick={() => openArticle(article)}
+                    disabled={!article.name}
+                    className="
+    group/open
 
-                <Button
-                  type="button"
-                  onClick={() => handleLikeToggle(article)}
-                  disabled={isPending || isOwnArticle}
-                  variant="secondary"
-                  size="md"
-                  aria-label={
-                    interaction.liked ? "Unlike report" : "Like report"
-                  }
-                  className={`
-                      !flex
-                      !h-[42px]
-                      !w-[44px]
-                      !items-center
-                      !justify-center
-                      !px-0
-                      !text-lg
+    flex
+    h-10
+    min-w-0
+    flex-1
+    items-center
+    justify-center
+    gap-2.5
+
+    rounded-xl
+
+    border-2
+    border-zinc-950
+
+    bg-[#3b4cca]
+
+    px-4
+
+    font-sans
+    text-[12px]
+    font-extrabold
+    leading-none
+    tracking-[-0.01em]
+
+    text-white
+
+    shadow-[2px_2px_0_#18181b]
+
+    transition-all
+    duration-200
+
+    hover:-translate-y-0.5
+    hover:bg-[#3040b4]
+
+    active:translate-x-0.5
+    active:translate-y-0.5
+    active:shadow-none
+
+    disabled:cursor-not-allowed
+    disabled:opacity-50
+    disabled:hover:translate-y-0
+  "
+                  >
+                    <span className="whitespace-nowrap">VIEW REPORT</span>
+                  </button>
+                  {/* =====================================
+                      LIKE
+                  ====================================== */}
+
+                  <button
+                    type="button"
+                    disabled={pendingArticleId === article._id || ownArticle}
+                    onClick={(event) => handleLike(event, article)}
+                    aria-label={
+                      ownArticle
+                        ? "You cannot like your own report"
+                        : interaction.liked
+                          ? "Unlike report"
+                          : "Like report"
+                    }
+                    className={`
+                      flex
+                      h-10
+                      min-w-11
+                      items-center
+                      justify-center
+
+                      rounded-xl
+
+                      border-2
+                      border-zinc-950
+
+                      px-3
+
+                      text-sm
+                      font-black
+
+                      shadow-[2px_2px_0_#18181b]
+
+                      transition
+
+                      disabled:cursor-not-allowed
+                      disabled:opacity-50
+
                       ${
                         interaction.liked
-                          ? "!bg-red-500 !text-white hover:!bg-red-600"
-                          : "!bg-red-50 !text-red-500 hover:!bg-red-100"
+                          ? "bg-red-500 text-white"
+                          : "bg-white text-red-500"
                       }
-                      disabled:opacity-50
                     `}
-                >
-                  {isPending ? "…" : interaction.liked ? "♥" : "♡"}
-                </Button>
+                  >
+                    {pendingArticleId === article._id
+                      ? "…"
+                      : interaction.liked
+                        ? "♥"
+                        : "♡"}
+                  </button>
+                </div>
+
+                {message && (
+                  <div
+                    className={`
+                      mt-3
+
+                      rounded-lg
+
+                      border-2
+
+                      px-3
+                      py-2
+
+                      text-center
+
+                      text-[8px]
+                      font-black
+                      uppercase
+
+                      ${
+                        message.type === "reward"
+                          ? "border-green-700 bg-green-50 text-green-800"
+                          : message.type === "error"
+                            ? "border-red-700 bg-red-50 text-red-700"
+                            : "border-blue-700 bg-blue-50 text-blue-700"
+                      }
+                    `}
+                  >
+                    {message.message}
+                  </div>
+                )}
               </div>
-            </div>
-          </article>
-        );
-      })}
-    </div>
+            </article>
+          );
+        })}
+      </div>
+
+      <TrainerProfileModal
+        open={Boolean(selectedTrainer)}
+        trainerId={selectedTrainer?.id || ""}
+        username={selectedTrainer?.username || ""}
+        onClose={() => setSelectedTrainer(null)}
+      />
+    </>
   );
 };
 

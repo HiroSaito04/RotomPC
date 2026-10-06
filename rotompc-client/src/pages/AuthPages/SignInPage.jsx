@@ -1,4 +1,4 @@
-// rotompc-client/src/pages/AuthPages/SignInPage.jsx
+// filepath: rotompc-client/src/pages/AuthPages/SignInPage.jsx
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -80,17 +80,17 @@ const SignInPage = () => {
         setLoading(true);
 
         /*
-         * Save the authenticated session first.
+         * Save and normalize the session first.
          *
-         * This ensures that when the destination
-         * loads, Navbar / Buddy / profile sync
-         * already see the valid token.
+         * The RETURNED user is important here because
+         * roles such as "Admin", "ADMIN", or " admin "
+         * are normalized to "admin" before routing.
          */
 
-        saveAuthSession(data);
+        const authenticatedUser = saveAuthSession(data);
 
         const trainerName = String(
-          data?.firstName || data?.username || "",
+          authenticatedUser?.firstName || authenticatedUser?.username || "",
         ).trim();
 
         setSuccess(
@@ -100,20 +100,20 @@ const SignInPage = () => {
         );
 
         /*
-         * Keep the confirmation visible briefly
-         * so the user actually sees that login
-         * succeeded before the route changes.
+         * Determine the destination from the normalized
+         * stored session instead of the raw API payload.
+         *
+         * Admin/editor routing is handled before Trainer
+         * profile completion.
          */
 
-        redirectTimerRef.current = window.setTimeout(
-          () => {
-            navigate(getAuthDestination(data), {
-              replace: true,
-            });
-          },
+        const destination = getAuthDestination(authenticatedUser);
 
-          LOGIN_SUCCESS_DELAY,
-        );
+        redirectTimerRef.current = window.setTimeout(() => {
+          navigate(destination, {
+            replace: true,
+          });
+        }, LOGIN_SUCCESS_DELAY);
       } catch (err) {
         console.error("Authentication completion error:", err);
 
@@ -152,11 +152,10 @@ const SignInPage = () => {
       });
 
       /*
-       * Do not set loading false here on success.
+       * Keep loading active on success.
        *
-       * completeAuthentication keeps the page locked
-       * during the brief success confirmation and
-       * then redirects.
+       * completeAuthentication() handles the success
+       * confirmation and redirect.
        */
 
       completeAuthentication(response.data);
@@ -301,8 +300,10 @@ const SignInPage = () => {
                 <p
                   className="
                     mt-0.5
+
                     text-xs
                     font-semibold
+
                     text-green-700
                   "
                 >

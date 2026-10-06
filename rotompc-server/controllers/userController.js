@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
 const User = require("../models/User");
+const { USER_ROLES } = require("../constants/userRoles");
 
 const { validateUserInput } = require("../validators/userValidator");
 
@@ -11,6 +12,8 @@ const {
   createUniqueTrainerCode,
   createUniqueUsername,
 } = require("../utils/userHelpers");
+
+const TrainerAvatarSelection = require("../models/TrainerAvatarSelection");
 
 /* =========================================================
    SAFE ACCOUNT SERIALIZER
@@ -376,7 +379,7 @@ const updateUser = async (req, res) => {
     if (update.role !== undefined) {
       const role = String(update.role).toLowerCase().trim();
 
-      const validRoles = ["admin", "professor", "trainer", "editor"];
+      const validRoles = USER_ROLES;
 
       if (!validRoles.includes(role)) {
         return res.status(400).json({
@@ -475,30 +478,36 @@ const deleteUser = async (req, res) => {
     }
 
     /*
-     * Remove deleted trainer from all
-     * social relationship arrays.
+     * Remove deleted trainer from social relationships
+     * and remove their separate Trainer avatar selection.
      */
-    await User.updateMany(
-      {
-        $or: [
-          {
-            followers: deletedUser._id,
-          },
+    await Promise.all([
+      User.updateMany(
+        {
+          $or: [
+            {
+              followers: deletedUser._id,
+            },
 
-          {
+            {
+              following: deletedUser._id,
+            },
+          ],
+        },
+
+        {
+          $pull: {
+            followers: deletedUser._id,
+
             following: deletedUser._id,
           },
-        ],
-      },
-
-      {
-        $pull: {
-          followers: deletedUser._id,
-
-          following: deletedUser._id,
         },
-      },
-    );
+      ),
+
+      TrainerAvatarSelection.deleteOne({
+        user: deletedUser._id,
+      }),
+    ]);
 
     return res.json({
       message: "User deleted successfully.",

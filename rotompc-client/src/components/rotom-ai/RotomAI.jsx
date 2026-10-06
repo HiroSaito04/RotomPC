@@ -1,8 +1,10 @@
-// rotompc-client/src/components/rotom-ai/RotomAI.jsx
+// filepath: rotompc-client/src/components/rotom-ai/RotomAI.jsx
 
 import { useCallback, useState } from "react";
 
 import "@/assets/styles/rotom-ai.css";
+
+import { useAppBoot } from "@/context/AppBootContext";
 
 import useRotomAIChat from "@/hooks/useRotomAIChat";
 
@@ -17,6 +19,8 @@ import RotomAIChatModal from "./RotomAIChatModal";
 ========================================================= */
 
 const RotomAI = ({ buddyVisible = false }) => {
+  const { appReady } = useAppBoot();
+
   const [isOpen, setIsOpen] = useState(false);
 
   const [input, setInput] = useState("");
@@ -30,14 +34,21 @@ const RotomAI = ({ buddyVisible = false }) => {
   /* =======================================================
      LAUNCHER CYCLE
 
-     ONE owner only.
+     Only this component owns the launcher cycle.
 
-     RotomAILauncher is now purely visual and does not
-     create a second launcher cycle.
+     appReady comes from App.jsx through AppBootContext.
+
+     While splash is active:
+     appReady = false
+
+     After splash finishes:
+     appReady = true
   ======================================================= */
 
   const launcher = useRotomAILauncherCycle({
     paused: isOpen,
+
+    appReady,
 
     buddyVisible,
   });
@@ -47,8 +58,12 @@ const RotomAI = ({ buddyVisible = false }) => {
   ======================================================= */
 
   const openRotomAI = useCallback(() => {
+    if (!appReady) {
+      return;
+    }
+
     setIsOpen(true);
-  }, []);
+  }, [appReady]);
 
   /* =======================================================
      CLOSE
@@ -60,8 +75,6 @@ const RotomAI = ({ buddyVisible = false }) => {
 
   /* =======================================================
      SEND
-
-     useRotomAIChat expects the actual message.
   ======================================================= */
 
   const handleSendMessage = useCallback(
@@ -77,14 +90,28 @@ const RotomAI = ({ buddyVisible = false }) => {
       const result = await chat.sendMessage(message);
 
       /*
-       * Restore unsent text if the request failed.
+       * Restore the message if sending failed.
        */
+
       if (!result) {
         setInput(message);
       }
     },
     [chat, input],
   );
+
+  /* =======================================================
+     APP NOT READY
+
+     Do not render Rotom while the splash is active.
+
+     The hook also receives appReady=false, so its timers
+     remain blocked.
+  ======================================================= */
+
+  if (!appReady) {
+    return null;
+  }
 
   /* =======================================================
      UI

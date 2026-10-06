@@ -1,13 +1,16 @@
-// rotompc-client/src/layouts/DashLayout.jsx
-import React, { useState } from "react";
+// filepath: rotompc-client/src/layouts/DashLayout.jsx
+
+import { useEffect, useMemo, useState } from "react";
+
 import {
-  Outlet,
   Link,
+  Navigate,
+  Outlet,
   useLocation,
   useNavigate,
-  Navigate,
 } from "react-router-dom";
-import { styled, useTheme, alpha } from "@mui/material/styles";
+
+import { alpha, styled, useTheme } from "@mui/material/styles";
 
 import Box from "@mui/material/Box";
 import MuiDrawer from "@mui/material/Drawer";
@@ -16,615 +19,1415 @@ import Toolbar from "@mui/material/Toolbar";
 import List from "@mui/material/List";
 import CssBaseline from "@mui/material/CssBaseline";
 import Typography from "@mui/material/Typography";
-import Divider from "@mui/material/Divider";
 import IconButton from "@mui/material/IconButton";
-import InputBase from "@mui/material/InputBase";
 import Button from "@mui/material/Button";
 import ListItem from "@mui/material/ListItem";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
+import Chip from "@mui/material/Chip";
+import useMediaQuery from "@mui/material/useMediaQuery";
 
 import MenuIcon from "@mui/icons-material/Menu";
 import MenuOpenIcon from "@mui/icons-material/MenuOpen";
-import SearchIcon from "@mui/icons-material/Search";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import PeopleIcon from "@mui/icons-material/People";
 import AssessmentIcon from "@mui/icons-material/Assessment";
+import ArticleIcon from "@mui/icons-material/Article";
+import LogoutIcon from "@mui/icons-material/Logout";
 
-const drawerWidth = 240;
+import { clearAuthSession } from "@/utils/authSession";
+
+/* =========================================================
+   CONFIG
+========================================================= */
+
+const DRAWER_WIDTH = 250;
+
+const MOBILE_DRAWER_WIDTH = 272;
 
 const ROTOM_RED = "#cc0000";
+
 const ROTOM_CYAN = "#00E5FF";
+
 const ROTOM_DARK = "#1A1A1A";
 
-const dashboardNavItems = [
+/* =========================================================
+   NAVIGATION
+
+   roles:
+   null = every dashboard role
+========================================================= */
+
+const DASHBOARD_NAV_ITEMS = [
   {
     label: "Dashboard",
-    title: "RotomPC Dashboard",
+
+    title: "Dashboard",
+
     to: "/dashboard",
+
     icon: DashboardIcon,
+
+    roles: null,
   },
-  {
-    label: "Reports",
-    title: "RotomPC Analytics & Reports",
-    to: "/dashboard/reports",
-    icon: AssessmentIcon,
-  },
-  {
-    label: "Users",
-    title: "RotomPC User Management",
-    to: "/dashboard/users",
-    icon: PeopleIcon,
-  },
+
   {
     label: "Articles",
-    title: "RotomPC Article Management",
+
+    title: "Article Management",
+
     to: "/dashboard/articles",
+
+    icon: ArticleIcon,
+
+    roles: ["admin", "editor"],
+  },
+
+  {
+    label: "Reports",
+
+    title: "Analytics & Reports",
+
+    to: "/dashboard/reports",
+
     icon: AssessmentIcon,
+
+    roles: ["admin", "editor"],
+  },
+
+  {
+    label: "Users",
+
+    title: "User Management",
+
+    to: "/dashboard/users",
+
+    icon: PeopleIcon,
+
+    roles: ["admin"],
   },
 ];
 
+/* =========================================================
+   HELPERS
+========================================================= */
+
+const normalizeRole = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase();
+
+const capitalize = (value) => {
+  const text = String(value || "");
+
+  if (!text) {
+    return "";
+  }
+
+  return text.charAt(0).toUpperCase() + text.slice(1);
+};
+
+/* =========================================================
+   DRAWER MIXINS
+========================================================= */
+
 const openedMixin = (theme) => ({
-  width: drawerWidth,
+  width: DRAWER_WIDTH,
+
   transition: theme.transitions.create("width", {
     easing: theme.transitions.easing.sharp,
+
     duration: theme.transitions.duration.enteringScreen,
   }),
+
   overflowX: "hidden",
 });
 
 const closedMixin = (theme) => ({
   transition: theme.transitions.create("width", {
     easing: theme.transitions.easing.sharp,
+
     duration: theme.transitions.duration.leavingScreen,
   }),
+
   overflowX: "hidden",
-  width: `calc(${theme.spacing(7)} + 1px)`,
-  [theme.breakpoints.up("sm")]: {
-    width: `calc(${theme.spacing(8)} + 1px)`,
-  },
+
+  width: `calc(${theme.spacing(8)} + 1px)`,
 });
+
+/* =========================================================
+   DRAWER HEADER
+========================================================= */
 
 const DrawerHeader = styled("div")(({ theme }) => ({
   display: "flex",
+
+  minHeight: 92,
+
   alignItems: "center",
+
   justifyContent: "flex-end",
+
   padding: theme.spacing(0, 1),
-  height: "84px",
+
   ...theme.mixins.toolbar,
+
+  [theme.breakpoints.down("md")]: {
+    minHeight: 88,
+  },
 }));
+
+/* =========================================================
+   APP BAR
+========================================================= */
 
 const AppBar = styled(MuiAppBar, {
   shouldForwardProp: (prop) => prop !== "open",
 })(({ theme, open }) => ({
   zIndex: theme.zIndex.drawer + 1,
-  backgroundColor: "#f3f4f6",
-  color: "#000",
-  boxShadow: "none",
-  borderBottom: "6px solid #1A1A1A",
+
   width: "100%",
+
+  backgroundColor: "#f3f4f6",
+
+  color: "#000",
+
+  boxShadow: "none",
+
+  borderBottom: "6px solid #1A1A1A",
+
   transition: theme.transitions.create(["width", "margin"], {
     easing: theme.transitions.easing.sharp,
+
     duration: theme.transitions.duration.leavingScreen,
   }),
-  [theme.breakpoints.up("sm")]: {
+
+  [theme.breakpoints.up("md")]: {
     ...(open && {
-      marginLeft: drawerWidth,
-      width: `calc(100% - ${drawerWidth}px)`,
+      marginLeft: DRAWER_WIDTH,
+
+      width: `calc(100% - ${DRAWER_WIDTH}px)`,
+
       transition: theme.transitions.create(["width", "margin"], {
         easing: theme.transitions.easing.sharp,
+
         duration: theme.transitions.duration.enteringScreen,
       }),
     }),
   },
 }));
 
+/* =========================================================
+   DESKTOP DRAWER
+========================================================= */
+
 const Drawer = styled(MuiDrawer, {
   shouldForwardProp: (prop) => prop !== "open",
 })(({ theme, open }) => ({
-  width: drawerWidth,
+  width: DRAWER_WIDTH,
+
   flexShrink: 0,
+
   whiteSpace: "nowrap",
+
   boxSizing: "border-box",
+
   ...(open && {
     ...openedMixin(theme),
+
     "& .MuiDrawer-paper": {
       ...openedMixin(theme),
+
       backgroundColor: ROTOM_DARK,
-      color: "#FFFFFF",
-      borderRight: `4px solid #1A1A1A`,
+
+      color: "#fff",
+
+      borderRight: "4px solid #1A1A1A",
     },
   }),
+
   ...(!open && {
     ...closedMixin(theme),
+
     "& .MuiDrawer-paper": {
       ...closedMixin(theme),
+
       backgroundColor: ROTOM_DARK,
-      color: "#FFFFFF",
-      borderRight: `4px solid #1A1A1A`,
+
+      color: "#fff",
+
+      borderRight: "4px solid #1A1A1A",
     },
   }),
 }));
 
-const Search = styled("div")(({ theme }) => ({
-  position: "relative",
-  borderRadius: "8px",
-  border: "2px solid #1A1A1A",
-  backgroundColor: alpha(theme.palette.common.white, 0.5),
-  "&:hover": {
-    backgroundColor: alpha(theme.palette.common.white, 0.8),
-  },
-  marginRight: theme.spacing(1),
-  marginLeft: 0,
-  width: "100%",
-  [theme.breakpoints.up("sm")]: {
-    marginRight: theme.spacing(2),
-    marginLeft: theme.spacing(3),
-    width: "auto",
-  },
-}));
-
-const SearchIconWrapper = styled("div")(({ theme }) => ({
-  padding: theme.spacing(0, 1.5),
-  height: "100%",
-  position: "absolute",
-  pointerEvents: "none",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  color: ROTOM_RED,
-  [theme.breakpoints.up("sm")]: {
-    padding: theme.spacing(0, 2),
-  },
-}));
-
-const StyledInputBase = styled(InputBase)(({ theme }) => ({
-  color: "inherit",
-  fontWeight: "bold",
-  width: "100%",
-  "& .MuiInputBase-input": {
-    padding: theme.spacing(1, 1, 1, 0),
-    paddingLeft: `calc(1em + ${theme.spacing(3.5)})`,
-    transition: theme.transitions.create("width"),
-    width: "100%",
-    fontSize: "0.75rem",
-    [theme.breakpoints.up("sm")]: {
-      fontSize: "0.8rem",
-      paddingLeft: `calc(1em + ${theme.spacing(4)})`,
-      width: "14ch",
-    },
-    [theme.breakpoints.up("md")]: {
-      width: "20ch",
-    },
-  },
-}));
+/* =========================================================
+   DASH LAYOUT
+========================================================= */
 
 const DashLayout = () => {
   const theme = useTheme();
-  const [open, setOpen] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+
   const location = useLocation();
+
   const navigate = useNavigate();
 
-  // Retrieve auth details safely from local session registry
-  const token = localStorage.getItem("token");
-  const role = localStorage.getItem("role");
+  /*
+   * Anything below md uses the temporary mobile drawer.
+   *
+   * This includes phones and small tablets.
+   */
+  const isMobileView = useMediaQuery(theme.breakpoints.down("md"));
 
-  // 1. SHIELD AGAINST UNAUTHENTICATED VISITS: Kick to login instantly if token is missing
+  const [open, setOpen] = useState(false);
+
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  /* =======================================================
+     AUTH
+  ======================================================= */
+
+  const token = localStorage.getItem("token");
+
+  const role = normalizeRole(localStorage.getItem("role"));
+
+  const allowedRoles = ["admin", "editor"];
+
+  /* =======================================================
+     ROLE-SPECIFIC NAVIGATION
+
+     Editors:
+     - Dashboard
+     - Articles
+     - Reports
+
+     Admin:
+     - Dashboard
+     - Articles
+     - Reports
+     - Users
+  ======================================================= */
+
+  const visibleNavItems = useMemo(() => {
+    return DASHBOARD_NAV_ITEMS.filter((item) => {
+      if (!item.roles) {
+        return true;
+      }
+
+      return item.roles.includes(role);
+    });
+  }, [role]);
+
+  /* =======================================================
+     ACTIVE PAGE
+  ======================================================= */
+
+  const activeItem = useMemo(() => {
+    return visibleNavItems.find((item) => {
+      if (item.to === "/dashboard") {
+        return location.pathname === "/dashboard";
+      }
+
+      return location.pathname.startsWith(item.to);
+    });
+  }, [visibleNavItems, location.pathname]);
+
+  const pageTitle = activeItem?.title || "Dashboard";
+
+  /* =======================================================
+     CLOSE MOBILE DRAWER AFTER NAVIGATION
+  ======================================================= */
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
+
+  /* =======================================================
+     DRAWER
+  ======================================================= */
+
+  const handleDrawerToggle = () => {
+    if (isMobileView) {
+      setMobileOpen((current) => !current);
+
+      return;
+    }
+
+    setOpen((current) => !current);
+  };
+
+  const handleMobileClose = () => {
+    setMobileOpen(false);
+  };
+
+  /* =======================================================
+     LOGOUT
+  ======================================================= */
+
+  const handleLogout = () => {
+    clearAuthSession();
+
+    navigate("/", {
+      replace: true,
+    });
+  };
+
+  /* =======================================================
+     ACCESS GUARDS
+  ======================================================= */
+
   if (!token) {
     return <Navigate to="/auth/signin" replace />;
   }
 
-  // 2. SHIELD AGAINST UNAUTHORIZED ROLES: Force users back to home if they aren't admin or editor
-  const allowedRoles = ["admin", "editor"];
   if (!allowedRoles.includes(role)) {
     return <Navigate to="/" replace />;
   }
 
-  const activeItem = dashboardNavItems.find(
-    (item) => item.to === location.pathname,
-  );
-  const pageTitle = activeItem ? activeItem.title : "DASHBOARD";
+  /*
+   * Defense-in-depth:
+   *
+   * UsersPage itself should also be admin-only,
+   * but block editors here too so they never render it.
+   */
+  if (role !== "admin" && location.pathname.startsWith("/dashboard/users")) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
-  const handleDrawerToggle = () => {
-    if (window.innerWidth < theme.breakpoints.values.sm) {
-      setMobileOpen(!mobileOpen);
-    } else {
-      setOpen(!open);
-    }
-  };
+  /* =======================================================
+     NAVIGATION MENU
+  ======================================================= */
 
-  const handleMobileClose = () => setMobileOpen(false);
+  const renderNavigationMenu = (mobile = false) => {
+    const expanded = open || mobile;
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("id");
-    localStorage.removeItem("role");
-    localStorage.removeItem("firstName");
-    localStorage.removeItem("user");
+    return (
+      <Box
+        sx={{
+          display: "flex",
 
-    window.dispatchEvent(new Event("local-auth-update"));
-    navigate("/");
-  };
+          height: "100%",
 
-  const listNavigationMenu = (isMobileView = false) => (
-    <List sx={{ px: 1, pt: isMobileView ? 2 : 4 }}>
-      {dashboardNavItems.map(({ label, to, icon: Icon }) => (
-        <ListItem key={to} disablePadding sx={{ display: "block", mb: 1 }}>
-          <ListItemButton
-            component={Link}
-            to={to}
-            onClick={isMobileView ? handleMobileClose : undefined}
-            selected={location.pathname === to}
+          flexDirection: "column",
+        }}
+      >
+        {/* ===============================================
+            ROLE INFO
+        ================================================ */}
+
+        {expanded && (
+          <Box
             sx={{
-              minHeight: 48,
-              borderRadius: "8px",
-              justifyContent: open || isMobileView ? "initial" : "center",
-              border: "2px solid transparent",
-              "&.Mui-selected": {
-                backgroundColor: "#000",
-                borderColor: ROTOM_CYAN,
-                color: ROTOM_CYAN,
-                boxShadow: `inset 0px 0px 8px ${alpha(ROTOM_CYAN, 0.4)}`,
-                "& .MuiListItemIcon-root": { color: ROTOM_CYAN },
-                "&:hover": { backgroundColor: "#111" },
-              },
-              "&:hover": {
-                backgroundColor: alpha(ROTOM_RED, 0.1),
-                color: ROTOM_RED,
-                "& .MuiListItemIcon-root": { color: ROTOM_RED },
-              },
+              px: 2,
+
+              pt: mobile ? 1 : 2,
+
+              pb: 1,
             }}
           >
-            <ListItemIcon
+            <Typography
               sx={{
-                minWidth: 0,
-                mr: open || isMobileView ? 3 : "auto",
-                justifyContent: "center",
-                color: "#666",
+                color: "#71717a",
+
+                fontSize: "0.58rem",
+
+                fontWeight: 900,
+
+                letterSpacing: "0.12em",
+
+                textTransform: "uppercase",
               }}
             >
-              <Icon />
-            </ListItemIcon>
-            <ListItemText
-              primary={label}
+              RotomPC Control
+            </Typography>
+
+            <Chip
+              size="small"
+              label={`${capitalize(role)} Access`}
               sx={{
-                opacity: open || isMobileView ? 1 : 0,
-                "& .MuiTypography-root": {
-                  fontWeight: 900,
-                  textTransform: "uppercase",
-                  fontStyle: "italic",
-                  fontSize: "0.75rem",
-                  letterSpacing: 1,
-                },
+                mt: 0.8,
+
+                height: 24,
+
+                border: `1px solid ${ROTOM_CYAN}`,
+
+                bgcolor: "rgba(0,229,255,0.08)",
+
+                color: ROTOM_CYAN,
+
+                fontSize: "0.6rem",
+
+                fontWeight: 900,
+
+                textTransform: "uppercase",
               }}
             />
-          </ListItemButton>
-        </ListItem>
-      ))}
-    </List>
-  );
+          </Box>
+        )}
+
+        {/* ===============================================
+            NAV
+        ================================================ */}
+
+        <List
+          sx={{
+            px: 1,
+
+            pt: expanded ? 1 : 3,
+          }}
+        >
+          {visibleNavItems.map(({ label, to, icon: Icon }) => {
+            const selected =
+              to === "/dashboard"
+                ? location.pathname === "/dashboard"
+                : location.pathname.startsWith(to);
+
+            return (
+              <ListItem
+                key={to}
+                disablePadding
+                sx={{
+                  display: "block",
+
+                  mb: 1,
+                }}
+              >
+                <ListItemButton
+                  component={Link}
+                  to={to}
+                  selected={selected}
+                  onClick={mobile ? handleMobileClose : undefined}
+                  sx={{
+                    minHeight: 48,
+
+                    px: 1.5,
+
+                    border: "2px solid transparent",
+
+                    borderRadius: 2,
+
+                    justifyContent: expanded ? "initial" : "center",
+
+                    color: "#d4d4d8",
+
+                    transition: "all 0.15s ease",
+
+                    "&.Mui-selected": {
+                      borderColor: ROTOM_CYAN,
+
+                      bgcolor: "#000",
+
+                      color: ROTOM_CYAN,
+
+                      boxShadow: `inset 0 0 8px ${alpha(ROTOM_CYAN, 0.35)}`,
+
+                      "& .MuiListItemIcon-root": {
+                        color: ROTOM_CYAN,
+                      },
+
+                      "&:hover": {
+                        bgcolor: "#111",
+                      },
+                    },
+
+                    "&:hover": {
+                      bgcolor: alpha(ROTOM_RED, 0.12),
+
+                      color: "#fff",
+
+                      "& .MuiListItemIcon-root": {
+                        color: ROTOM_RED,
+                      },
+                    },
+                  }}
+                >
+                  <ListItemIcon
+                    sx={{
+                      minWidth: 0,
+
+                      mr: expanded ? 2.5 : "auto",
+
+                      justifyContent: "center",
+
+                      color: "#a1a1aa",
+                    }}
+                  >
+                    <Icon />
+                  </ListItemIcon>
+
+                  <ListItemText
+                    primary={label}
+                    sx={{
+                      m: 0,
+
+                      opacity: expanded ? 1 : 0,
+
+                      "& .MuiTypography-root": {
+                        overflow: "hidden",
+
+                        fontSize: "0.72rem",
+
+                        fontStyle: "italic",
+
+                        fontWeight: 900,
+
+                        letterSpacing: "0.06em",
+
+                        textOverflow: "ellipsis",
+
+                        textTransform: "uppercase",
+
+                        whiteSpace: "nowrap",
+                      },
+                    }}
+                  />
+                </ListItemButton>
+              </ListItem>
+            );
+          })}
+        </List>
+
+        {/* ===============================================
+            FOOTER
+        ================================================ */}
+
+        {expanded && (
+          <Box
+            sx={{
+              mt: "auto",
+
+              p: 2,
+
+              textAlign: "center",
+            }}
+          >
+            <Box
+              sx={{
+                height: 3,
+
+                width: "100%",
+
+                mb: 1,
+
+                borderRadius: 99,
+
+                bgcolor: "#3f3f46",
+              }}
+            />
+
+            <Typography
+              sx={{
+                color: "#71717a",
+
+                fontSize: "0.56rem",
+
+                fontWeight: 800,
+
+                letterSpacing: "0.08em",
+
+                textTransform: "uppercase",
+              }}
+            >
+              v2.0 · Rotom OS
+            </Typography>
+          </Box>
+        )}
+      </Box>
+    );
+  };
+
+  /* =======================================================
+     UI
+  ======================================================= */
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "#e5e7eb" }}>
+    <Box
+      sx={{
+        display: "flex",
+
+        width: "100%",
+
+        minWidth: 0,
+
+        minHeight: "100dvh",
+
+        overflowX: "hidden",
+
+        bgcolor: "#e5e7eb",
+      }}
+    >
       <CssBaseline />
 
-      <AppBar position="fixed" open={open}>
-        {/* Upper Hardware Strip (The "Status LEDs") */}
+      {/* =================================================
+          APP BAR
+      ================================================== */}
+
+      <AppBar position="fixed" open={!isMobileView && open}>
+        {/* ===============================================
+            HARDWARE STATUS STRIP
+        ================================================ */}
+
         <Box
           sx={{
             display: "flex",
-            height: 24,
+
+            height: {
+              xs: 18,
+              md: 22,
+            },
+
             width: "100%",
+
             alignItems: "center",
-            gap: 1.5,
-            bgcolor: "#cc0000",
-            px: { xs: 1.5, sm: 3 },
+
+            gap: {
+              xs: 0.75,
+              sm: 1,
+            },
+
+            px: {
+              xs: 1.5,
+              sm: 2,
+              md: 3,
+            },
+
             borderBottom: "2px solid rgba(0,0,0,0.2)",
+
+            bgcolor: ROTOM_RED,
           }}
         >
           <Box
             sx={{
-              height: 12,
-              width: 12,
-              borderRadius: "50%",
+              width: {
+                xs: 9,
+                md: 11,
+              },
+
+              height: {
+                xs: 9,
+                md: 11,
+              },
+
               border: "2px solid #fff",
+
+              borderRadius: "50%",
+
               bgcolor: "#60a5fa",
-              boxShadow: "0 0 8px #60a5fa",
-              animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-              "@keyframes pulse": {
-                "0%, 100%": { opacity: 1 },
-                "50%": { opacity: 0.5 },
+
+              boxShadow: "0 0 7px #60a5fa",
+
+              animation: "dashboardPulse 2s ease-in-out infinite",
+
+              "@keyframes dashboardPulse": {
+                "0%, 100%": {
+                  opacity: 1,
+                },
+
+                "50%": {
+                  opacity: 0.55,
+                },
               },
             }}
           />
-          <Box sx={{ display: "flex", gap: 0.75 }}>
-            <Box
-              sx={{
-                height: 8,
-                width: 8,
-                borderRadius: "50%",
-                bgcolor: "#ff1c1c",
-                border: "1px solid rgba(0,0,0,0.2)",
-              }}
-            />
-            <Box
-              sx={{
-                height: 8,
-                width: 8,
-                borderRadius: "50%",
-                bgcolor: "#ffcb05",
-                border: "1px solid rgba(0,0,0,0.2)",
-              }}
-            />
-            <Box
-              sx={{
-                height: 8,
-                width: 8,
-                borderRadius: "50%",
-                bgcolor: "#4dad5b",
-                border: "1px solid rgba(0,0,0,0.2)",
-              }}
-            />
-          </Box>
-          <Box sx={{ ml: "auto", display: "flex", gap: 2 }}>
-            <Box
-              sx={{
-                height: 4,
-                width: 48,
-                borderRadius: 2,
-                bgcolor: "rgba(0,0,0,0.2)",
-              }}
-            />
-          </Box>
-        </Box>
 
-        <Toolbar sx={{ py: 1, px: { xs: 1, sm: 2 } }}>
-          <IconButton
-            onClick={handleDrawerToggle}
-            edge="start"
-            sx={{
-              marginRight: { xs: 1, sm: 3 },
-              color: "#fff",
-              bgcolor: ROTOM_DARK,
-              "&:hover": { bgcolor: ROTOM_RED },
-              borderRadius: "8px",
-              border: "2px solid #000",
-              p: { xs: 0.75, sm: 1 },
-            }}
-          >
-            <Box sx={{ display: { xs: "none", sm: "block" } }}>
-              {open ? <MenuOpenIcon /> : <MenuIcon />}
-            </Box>
-            <Box sx={{ display: { xs: "block", sm: "none" } }}>
-              {mobileOpen ? <MenuOpenIcon /> : <MenuIcon />}
-            </Box>
-          </IconButton>
-
-          {/* Logo / Title Section */}
           <Box
             sx={{
               display: "flex",
-              alignItems: "center",
-              flexGrow: 1,
-              minWidth: 0,
+
+              gap: 0.55,
             }}
           >
             <Box
-              className="group"
               sx={{
-                position: "relative",
-                display: { xs: "none", md: "flex" },
-                height: 48,
-                width: 48,
-                alignItems: "center",
-                justifyContent: "center",
+                width: 7,
+
+                height: 7,
+
+                border: "1px solid rgba(0,0,0,0.25)",
+
                 borderRadius: "50%",
-                border: "4px solid #18181b",
+
+                bgcolor: "#ff1c1c",
+              }}
+            />
+
+            <Box
+              sx={{
+                width: 7,
+
+                height: 7,
+
+                border: "1px solid rgba(0,0,0,0.25)",
+
+                borderRadius: "50%",
+
+                bgcolor: "#ffcb05",
+              }}
+            />
+
+            <Box
+              sx={{
+                width: 7,
+
+                height: 7,
+
+                border: "1px solid rgba(0,0,0,0.25)",
+
+                borderRadius: "50%",
+
+                bgcolor: "#4dad5b",
+              }}
+            />
+          </Box>
+
+          <Box
+            sx={{
+              ml: "auto",
+
+              width: {
+                xs: 30,
+                sm: 48,
+              },
+
+              height: 3,
+
+              borderRadius: 99,
+
+              bgcolor: "rgba(0,0,0,0.22)",
+            }}
+          />
+        </Box>
+
+        {/* ===============================================
+            MAIN TOOLBAR
+        ================================================ */}
+
+        <Toolbar
+          sx={{
+            minHeight: "64px !important",
+
+            gap: {
+              xs: 0.75,
+              sm: 1,
+            },
+
+            px: {
+              xs: "10px !important",
+
+              sm: "16px !important",
+
+              md: "20px !important",
+            },
+          }}
+        >
+          {/* =============================================
+              DRAWER TOGGLE
+          ============================================== */}
+
+          <IconButton
+            type="button"
+            edge="start"
+            aria-label={
+              isMobileView
+                ? mobileOpen
+                  ? "Close dashboard menu"
+                  : "Open dashboard menu"
+                : open
+                  ? "Collapse dashboard sidebar"
+                  : "Expand dashboard sidebar"
+            }
+            onClick={handleDrawerToggle}
+            sx={{
+              flexShrink: 0,
+
+              width: {
+                xs: 38,
+                sm: 42,
+              },
+
+              height: {
+                xs: 38,
+                sm: 42,
+              },
+
+              border: "2px solid #000",
+
+              borderRadius: 2,
+
+              bgcolor: ROTOM_DARK,
+
+              color: "#fff",
+
+              "&:hover": {
+                bgcolor: ROTOM_RED,
+              },
+            }}
+          >
+            {(isMobileView ? mobileOpen : open) ? (
+              <MenuOpenIcon
+                sx={{
+                  fontSize: {
+                    xs: 20,
+                    sm: 24,
+                  },
+                }}
+              />
+            ) : (
+              <MenuIcon
+                sx={{
+                  fontSize: {
+                    xs: 20,
+                    sm: 24,
+                  },
+                }}
+              />
+            )}
+          </IconButton>
+
+          {/* =============================================
+              PAGE TITLE
+          ============================================== */}
+
+          <Box
+            sx={{
+              display: "flex",
+
+              minWidth: 0,
+
+              flex: 1,
+
+              alignItems: "center",
+
+              gap: 1.25,
+            }}
+          >
+            {/* Desktop hardware emblem */}
+
+            <Box
+              sx={{
+                display: {
+                  xs: "none",
+                  lg: "flex",
+                },
+
+                position: "relative",
+
+                width: 42,
+
+                height: 42,
+
+                flexShrink: 0,
+
+                alignItems: "center",
+
+                justifyContent: "center",
+
+                border: "3px solid #18181b",
+
+                borderRadius: "50%",
+
                 bgcolor: "#27272a",
-                boxShadow: "4px 4px 0px 0px rgba(0,0,0,0.1)",
-                transition: "transform 0.2s",
-                "&:hover": { transform: "rotate(12deg)" },
-                mr: 0.5,
+
+                boxShadow: "3px 3px 0 rgba(0,0,0,0.12)",
               }}
             >
               <Box
                 sx={{
-                  height: 32,
-                  width: 32,
-                  borderRadius: "50%",
-                  border: "2px solid #93c5fd",
-                  background: "linear-gradient(to top right, #2563eb, #60a5fa)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  overflow: "hidden",
                   position: "relative",
+
+                  display: "flex",
+
+                  width: 27,
+
+                  height: 27,
+
+                  alignItems: "center",
+
+                  justifyContent: "center",
+
+                  overflow: "hidden",
+
+                  border: "2px solid #93c5fd",
+
+                  borderRadius: "50%",
+
+                  background: "linear-gradient(135deg, #2563eb, #60a5fa)",
                 }}
               >
                 <Box
                   sx={{
                     position: "absolute",
+
                     top: 4,
-                    left: 8,
-                    height: 16,
-                    width: 16,
+
+                    left: 6,
+
+                    width: 12,
+
+                    height: 12,
+
                     borderRadius: "50%",
-                    bgcolor: "rgba(255,255,255,0.3)",
+
+                    bgcolor: "rgba(255,255,255,0.35)",
+
                     filter: "blur(1px)",
-                  }}
-                />
-                <Box
-                  sx={{
-                    height: "100%",
-                    width: 4,
-                    bgcolor: "rgba(255,255,255,0.1)",
-                    transform: "rotate(45deg)",
                   }}
                 />
               </Box>
             </Box>
-            <Typography
-              variant="h6"
-              noWrap
+
+            <Box
               sx={{
-                fontWeight: 900,
-                textTransform: "uppercase",
-                fontStyle: "italic",
-                letterSpacing: -1,
-                color: "#1A1A1A",
-                ml: { xs: 0.5, sm: 1.5 },
-                fontSize: { xs: "0.9rem", sm: "1.25rem" },
+                minWidth: 0,
               }}
             >
-              {pageTitle.split(" ")[0]}
-              <span style={{ color: "#cc0000" }}>
-                {pageTitle.split(" ")[1] || ""}
-              </span>
-            </Typography>
+              <Typography
+                noWrap
+                sx={{
+                  overflow: "hidden",
+
+                  color: ROTOM_DARK,
+
+                  fontSize: {
+                    xs: "0.82rem",
+                    sm: "1rem",
+                    md: "1.1rem",
+                  },
+
+                  fontStyle: "italic",
+
+                  fontWeight: 900,
+
+                  letterSpacing: {
+                    xs: "-0.02em",
+                    sm: "-0.03em",
+                  },
+
+                  lineHeight: 1.1,
+
+                  textOverflow: "ellipsis",
+
+                  textTransform: "uppercase",
+                }}
+              >
+                <Box
+                  component="span"
+                  sx={{
+                    display: {
+                      xs: "none",
+                      sm: "inline",
+                    },
+                  }}
+                >
+                  RotomPC{" "}
+                </Box>
+
+                <Box
+                  component="span"
+                  sx={{
+                    color: ROTOM_RED,
+                  }}
+                >
+                  {pageTitle}
+                </Box>
+              </Typography>
+
+              <Typography
+                noWrap
+                sx={{
+                  display: {
+                    xs: "none",
+                    md: "block",
+                  },
+
+                  mt: 0.2,
+
+                  color: "#71717a",
+
+                  fontSize: "0.56rem",
+
+                  fontWeight: 800,
+
+                  letterSpacing: "0.08em",
+
+                  textTransform: "uppercase",
+                }}
+              >
+                {capitalize(role)} Control Center
+              </Typography>
+            </Box>
           </Box>
 
-          <Search>
-            <SearchIconWrapper>
-              <SearchIcon sx={{ fontSize: { xs: "1.2rem", sm: "1.5rem" } }} />
-            </SearchIconWrapper>
-            <StyledInputBase
-              placeholder="SEARCH..."
-              inputProps={{ "aria-label": "search" }}
-            />
-          </Search>
+          {/* =============================================
+              ROLE BADGE
+
+              Hide on very small phones to preserve header
+              space.
+          ============================================== */}
+
+          <Chip
+            size="small"
+            label={capitalize(role)}
+            sx={{
+              display: {
+                xs: "none",
+                sm: "inline-flex",
+              },
+
+              height: 28,
+
+              flexShrink: 0,
+
+              border: "1px solid #d4d4d8",
+
+              bgcolor: "#fff",
+
+              color: ROTOM_DARK,
+
+              fontSize: "0.58rem",
+
+              fontWeight: 900,
+
+              textTransform: "uppercase",
+            }}
+          />
+
+          {/* =============================================
+              LOGOUT
+          ============================================== */}
 
           <Button
+            type="button"
+            aria-label="Log out"
+            title="Log out"
+            startIcon={
+              <LogoutIcon
+                sx={{
+                  fontSize: "17px !important",
+                }}
+              />
+            }
             onClick={handleLogout}
             sx={{
-              ml: { xs: 0.5, sm: 2 },
-              bgcolor: "#fff",
-              color: "#1A1A1A",
-              fontWeight: "black",
+              minWidth: {
+                xs: 40,
+                sm: "auto",
+              },
+
+              height: {
+                xs: 38,
+                sm: 40,
+              },
+
+              flexShrink: 0,
+
               border: "2px solid #1A1A1A",
-              boxShadow: "2px 2px 0px #000",
-              textTransform: "uppercase",
+
+              borderRadius: 2,
+
+              bgcolor: "#fff",
+
+              color: "#1A1A1A",
+
+              px: {
+                xs: 1,
+                sm: 1.5,
+              },
+
+              fontSize: "0.62rem",
+
               fontStyle: "italic",
-              fontSize: { xs: "8px", sm: "10px" },
-              px: { xs: 1, sm: 2 },
-              py: { xs: 0.5, sm: 1 },
-              minWidth: "auto",
-              whiteSpace: "nowrap",
+
+              fontWeight: 900,
+
+              textTransform: "uppercase",
+
+              boxShadow: "2px 2px 0 #000",
+
+              "& .MuiButton-startIcon": {
+                m: {
+                  xs: 0,
+                  sm: "0 6px 0 0",
+                },
+              },
+
               "&:hover": {
                 bgcolor: ROTOM_RED,
+
                 color: "#fff",
+
                 transform: "translateY(-1px)",
-                boxShadow: "3px 3px 0px #000",
+
+                boxShadow: "3px 3px 0 #000",
               },
-              "&:active": { transform: "translateY(1px)", boxShadow: "none" },
+
+              "&:active": {
+                transform: "translate(2px, 2px)",
+
+                boxShadow: "none",
+              },
             }}
           >
-            Log Out
+            <Box
+              component="span"
+              sx={{
+                display: {
+                  xs: "none",
+                  sm: "inline",
+                },
+              }}
+            >
+              Log Out
+            </Box>
           </Button>
         </Toolbar>
       </AppBar>
 
-      {/* MOBILE DRAWER */}
+      {/* =================================================
+          MOBILE / TABLET DRAWER
+      ================================================== */}
+
       <MuiDrawer
         variant="temporary"
         open={mobileOpen}
         onClose={handleMobileClose}
-        ModalProps={{ keepMounted: true }}
+        ModalProps={{
+          keepMounted: true,
+        }}
         sx={{
-          display: { xs: "block", sm: "none" },
+          display: {
+            xs: "block",
+            md: "none",
+          },
+
           "& .MuiDrawer-paper": {
             boxSizing: "border-box",
-            width: drawerWidth,
+
+            width: `min(${MOBILE_DRAWER_WIDTH}px, 86vw)`,
+
+            maxWidth: "86vw",
+
             backgroundColor: ROTOM_DARK,
-            color: "#FFFFFF",
-            borderRight: `4px solid #1A1A1A`,
+
+            color: "#fff",
+
+            borderRight: "4px solid #1A1A1A",
           },
         }}
       >
         <DrawerHeader>
-          <IconButton
-            onClick={handleMobileClose}
-            sx={{ color: ROTOM_RED, border: "2px solid #cc0000", mr: 1 }}
-          >
-            <ChevronLeftIcon />
-          </IconButton>
-        </DrawerHeader>
-        {listNavigationMenu(true)}
-        <Box sx={{ mt: "auto", p: 2, textAlign: "center", opacity: 0.5 }}>
           <Box
             sx={{
-              height: 4,
+              display: "flex",
+
               width: "100%",
-              bgcolor: "#333",
-              borderRadius: 2,
-              mb: 1,
+
+              alignItems: "center",
+
+              justifyContent: "space-between",
+
+              px: 1,
             }}
-          />
-          <Typography
-            variant="caption"
-            sx={{ fontWeight: "bold", color: "#555" }}
           >
-            v2.0-ROTOM-OS
-          </Typography>
-        </Box>
+            <Typography
+              sx={{
+                ml: 1,
+
+                color: "#fff",
+
+                fontSize: "0.75rem",
+
+                fontStyle: "italic",
+
+                fontWeight: 900,
+
+                textTransform: "uppercase",
+              }}
+            >
+              Rotom
+              <Box
+                component="span"
+                sx={{
+                  color: ROTOM_RED,
+                }}
+              >
+                PC
+              </Box>
+            </Typography>
+
+            <IconButton
+              type="button"
+              aria-label="Close dashboard menu"
+              onClick={handleMobileClose}
+              sx={{
+                width: 38,
+
+                height: 38,
+
+                border: `2px solid ${ROTOM_RED}`,
+
+                borderRadius: 2,
+
+                color: ROTOM_RED,
+
+                "&:hover": {
+                  bgcolor: alpha(ROTOM_RED, 0.12),
+                },
+              }}
+            >
+              <ChevronLeftIcon />
+            </IconButton>
+          </Box>
+        </DrawerHeader>
+
+        {renderNavigationMenu(true)}
       </MuiDrawer>
 
-      {/* DESKTOP DRAWER */}
+      {/* =================================================
+          DESKTOP DRAWER
+      ================================================== */}
+
       <Drawer
         variant="permanent"
         open={open}
-        sx={{ display: { xs: "none", sm: "block" } }}
+        sx={{
+          display: {
+            xs: "none",
+            md: "block",
+          },
+        }}
       >
         <DrawerHeader>
-          <IconButton
-            onClick={() => setOpen(false)}
-            sx={{ color: ROTOM_RED, border: "2px solid #cc0000", mr: 1 }}
-          >
-            {theme.direction === "rtl" ? (
-              <ChevronRightIcon />
-            ) : (
-              <ChevronLeftIcon />
-            )}
-          </IconButton>
-        </DrawerHeader>
-
-        {listNavigationMenu(false)}
-
-        {open && (
-          <Box sx={{ mt: "auto", p: 2, textAlign: "center", opacity: 0.5 }}>
+          {open ? (
             <Box
               sx={{
-                height: 4,
+                display: "flex",
+
                 width: "100%",
-                bgcolor: "#333",
-                borderRadius: 2,
-                mb: 1,
+
+                alignItems: "center",
+
+                justifyContent: "space-between",
+
+                px: 1,
               }}
-            />
-            <Typography
-              variant="caption"
-              sx={{ fontWeight: "bold", color: "#555" }}
             >
-              v2.0-ROTOM-OS
-            </Typography>
-          </Box>
-        )}
+              <Typography
+                sx={{
+                  ml: 1,
+
+                  color: "#fff",
+
+                  fontSize: "0.72rem",
+
+                  fontStyle: "italic",
+
+                  fontWeight: 900,
+
+                  textTransform: "uppercase",
+                }}
+              >
+                Rotom
+                <Box
+                  component="span"
+                  sx={{
+                    color: ROTOM_RED,
+                  }}
+                >
+                  PC
+                </Box>
+              </Typography>
+
+              <IconButton
+                type="button"
+                aria-label="Collapse dashboard sidebar"
+                onClick={() => setOpen(false)}
+                sx={{
+                  width: 36,
+
+                  height: 36,
+
+                  border: `2px solid ${ROTOM_RED}`,
+
+                  borderRadius: 2,
+
+                  color: ROTOM_RED,
+                }}
+              >
+                {theme.direction === "rtl" ? (
+                  <ChevronRightIcon />
+                ) : (
+                  <ChevronLeftIcon />
+                )}
+              </IconButton>
+            </Box>
+          ) : (
+            <Box
+              sx={{
+                width: "100%",
+
+                textAlign: "center",
+
+                color: ROTOM_CYAN,
+
+                fontSize: "1rem",
+
+                fontWeight: 900,
+              }}
+            >
+              R
+            </Box>
+          )}
+        </DrawerHeader>
+
+        {renderNavigationMenu(false)}
       </Drawer>
+
+      {/* =================================================
+          MAIN CONTENT
+      ================================================== */}
 
       <Box
         component="main"
         sx={{
-          flexGrow: 1,
-          p: { xs: 2, sm: 3 },
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
+          flex: 1,
+
+          width: 0,
+
           minWidth: 0,
+
+          minHeight: "100dvh",
+
+          overflowX: "hidden",
+
+          p: {
+            xs: 1.5,
+            sm: 2,
+            md: 2.5,
+            lg: 3,
+          },
         }}
       >
+        {/* Offset fixed AppBar */}
+
         <DrawerHeader />
-        <Box sx={{ mt: 2 }}>
+
+        <Box
+          sx={{
+            width: "100%",
+
+            minWidth: 0,
+
+            mt: {
+              xs: 1,
+              sm: 1.5,
+              md: 2,
+            },
+          }}
+        >
           <Outlet />
         </Box>
       </Box>

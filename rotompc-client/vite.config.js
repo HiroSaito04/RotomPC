@@ -1,4 +1,4 @@
-// rotompc-client/vite.config.js
+// filepath: rotompc-client/vite.config.js
 
 import { defineConfig } from "vite";
 
@@ -10,26 +10,53 @@ import { VitePWA } from "vite-plugin-pwa";
 
 import { fileURLToPath, URL } from "node:url";
 
+/* =========================================================
+   CONFIG
+========================================================= */
+
 export default defineConfig({
   plugins: [
     react(),
 
     /*
      * Required for Tailwind CSS v4.
-     *
-     * Without this plugin, the application can render
-     * without the Tailwind-generated UI styles.
      */
     tailwindcss(),
+
+    /* =====================================================
+       PWA
+    ===================================================== */
 
     VitePWA({
       registerType: "autoUpdate",
 
+      /*
+       * These are additional static assets that should be
+       * available to the installed application.
+       *
+       * rotompc-icon.svg remains the browser favicon.
+       *
+       * It is intentionally NOT included in manifest.icons.
+       */
       includeAssets: [
         "rotompc-icon.svg",
+
+        "Rotompc-app-icon.png",
+
+        "rotompc-app-icon-192.png",
+
+        "rotompc-app-icon-512.png",
+
+        "rotompc-app-icon-maskable-512.png",
+
+        "rotompc-apple-touch-icon.png",
+
+        "pwa-safe-area.css",
       ],
 
       manifest: {
+        id: "/",
+
         name: "RotomPC",
 
         short_name: "RotomPC",
@@ -41,6 +68,11 @@ export default defineConfig({
 
         scope: "/",
 
+        /*
+         * Standalone makes the installed version behave
+         * like an application instead of a normal browser
+         * tab.
+         */
         display: "standalone",
 
         orientation: "portrait-primary",
@@ -49,18 +81,51 @@ export default defineConfig({
 
         theme_color: "#cc0000",
 
+        /*
+         * IMPORTANT:
+         *
+         * These are all generated from:
+         *
+         * public/Rotompc-app-icon.png
+         *
+         * rotompc-icon.svg is NOT an install icon.
+         */
         icons: [
           {
-            src: "/rotompc-icon.svg",
+            src: "/rotompc-app-icon-192.png",
 
-            sizes: "any",
+            sizes: "192x192",
 
-            type: "image/svg+xml",
+            type: "image/png",
 
             purpose: "any",
           },
+
+          {
+            src: "/rotompc-app-icon-512.png",
+
+            sizes: "512x512",
+
+            type: "image/png",
+
+            purpose: "any",
+          },
+
+          {
+            src: "/rotompc-app-icon-maskable-512.png",
+
+            sizes: "512x512",
+
+            type: "image/png",
+
+            purpose: "maskable",
+          },
         ],
       },
+
+      /* ===================================================
+         SERVICE WORKER
+      =================================================== */
 
       workbox: {
         cleanupOutdatedCaches: true,
@@ -68,16 +133,24 @@ export default defineConfig({
         navigateFallback: "/index.html",
 
         runtimeCaching: [
+          /* -------------------------------------------------
+             ROTOMPC API
+
+             Keep API requests network-only.
+          ------------------------------------------------- */
+
           {
-            urlPattern:
-              /^https:\/\/rotompc-server\.vercel\.app\/api\//,
+            urlPattern: /^https:\/\/rotompc-server\.vercel\.app\/api\//,
 
             handler: "NetworkOnly",
           },
 
+          /* -------------------------------------------------
+             POKEAPI
+          ------------------------------------------------- */
+
           {
-            urlPattern:
-              /^https:\/\/pokeapi\.co\/api\/v2\//,
+            urlPattern: /^https:\/\/pokeapi\.co\/api\/v2\//,
 
             handler: "NetworkFirst",
 
@@ -89,15 +162,17 @@ export default defineConfig({
               expiration: {
                 maxEntries: 150,
 
-                maxAgeSeconds:
-                  60 * 60 * 24,
+                maxAgeSeconds: 60 * 60 * 24,
               },
             },
           },
 
+          /* -------------------------------------------------
+             IMAGES
+          ------------------------------------------------- */
+
           {
-            urlPattern:
-              /\.(?:png|jpg|jpeg|svg|webp|gif)$/i,
+            urlPattern: /\.(?:png|jpg|jpeg|svg|webp|gif)$/i,
 
             handler: "CacheFirst",
 
@@ -107,8 +182,7 @@ export default defineConfig({
               expiration: {
                 maxEntries: 250,
 
-                maxAgeSeconds:
-                  60 * 60 * 24 * 30,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
               },
             },
           },
@@ -121,9 +195,17 @@ export default defineConfig({
     }),
   ],
 
+  /* =======================================================
+     BUILD
+  ======================================================= */
+
   build: {
     cssMinify: "esbuild",
   },
+
+  /* =======================================================
+     ALIAS
+  ======================================================= */
 
   resolve: {
     alias: {

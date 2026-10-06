@@ -1,6 +1,6 @@
-// rotompc-client/src/App.jsx
+// filepath: rotompc-client/src/App.jsx
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 
@@ -48,7 +48,11 @@ import NotFoundPage from "@/pages/NotFoundPage";
 
 import RotomPCSplash from "@/components/splash/RotomPCSplash";
 
+import { AppBootProvider } from "@/context/AppBootContext";
+
 import useAuthSessionSync from "@/hooks/useAuthSessionSync";
+
+import { recordWebsiteVisit } from "@/services/AnalyticsService";
 
 /* =========================================================
    ROUTES
@@ -177,26 +181,94 @@ const router = createBrowserRouter(routes);
 function App() {
   const [splashVisible, setSplashVisible] = useState(true);
 
+  const lastTrackedPathRef = useRef("");
+
   /* =======================================================
-     KEEP LOGGED-IN TRAINER DATA SYNCHRONIZED
+     AUTH SESSION
   ======================================================= */
 
   useAuthSessionSync();
 
   /* =======================================================
-     SPLASH
+     WEBSITE VISIT TRACKING
+
+     Records:
+     - initial page
+     - subsequent SPA route changes
+
+     Does NOT send:
+     - query strings
+     - URL hashes
+     - email
+     - username
+     - page contents
+  ======================================================= */
+
+  useEffect(() => {
+    const trackLocation = (location) => {
+      const pathname = String(location?.pathname || "/");
+
+      /*
+       * Prevent duplicate router notifications in
+       * the same mounted App instance.
+       */
+      if (lastTrackedPathRef.current === pathname) {
+        return;
+      }
+
+      lastTrackedPathRef.current = pathname;
+
+      /*
+       * Analytics must never interrupt navigation.
+       */
+      recordWebsiteVisit(pathname).catch((error) => {
+        if (import.meta.env.DEV) {
+          console.warn("Website visit tracking unavailable:", error?.message);
+        }
+      });
+    };
+
+    /*
+     * Track the first route.
+     */
+    trackLocation(router.state.location);
+
+    /*
+     * Track future navigation.
+     */
+    const unsubscribe = router.subscribe((state) => {
+      trackLocation(state.location);
+    });
+
+    return () => {
+      unsubscribe?.();
+    };
+  }, []);
+
+  /* =======================================================
+     APP READY
+  ======================================================= */
+
+  const appReady = !splashVisible;
+
+  /* =======================================================
+     SPLASH FINISH
   ======================================================= */
 
   const handleSplashFinish = useCallback(() => {
     setSplashVisible(false);
   }, []);
 
+  /* =======================================================
+     UI
+  ======================================================= */
+
   return (
-    <>
+    <AppBootProvider appReady={appReady} splashVisible={splashVisible}>
       <RouterProvider router={router} />
 
       {splashVisible && <RotomPCSplash onFinish={handleSplashFinish} />}
-    </>
+    </AppBootProvider>
   );
 }
 

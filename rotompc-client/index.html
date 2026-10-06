@@ -1,27 +1,98 @@
+<!-- filepath: rotompc-client/index.html -->
+
 <!doctype html>
+
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+
+    <!-- ===================================================
+         MOBILE VIEWPORT
+
+         viewport-fit=cover allows safe-area-inset-* values
+         to correctly represent notches / Dynamic Island.
+    ==================================================== -->
 
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
 
-    <meta name="theme-color" content="#cc0000" />
+    <!-- ===================================================
+         BROWSER ICON
 
-    <meta name="mobile-web-app-capable" content="yes" />
+         Keep the existing RotomPC SVG for normal browser
+         tabs/bookmarks.
+
+         It is NOT used by the PWA manifest.
+    ==================================================== -->
+
+    <link rel="icon" type="image/svg+xml" href="/rotompc-icon.svg" />
+
+    <!-- ===================================================
+         IOS HOME-SCREEN ICON
+
+         This file is generated from:
+
+         public/Rotompc-app-icon.png
+    ==================================================== -->
+
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="/rotompc-apple-touch-icon.png"
+    />
+
+    <!-- ===================================================
+         PWA / MOBILE
+    ==================================================== -->
+
+    <meta name="theme-color" content="#cc0000" />
 
     <meta name="apple-mobile-web-app-capable" content="yes" />
 
-    <meta
-      name="apple-mobile-web-app-status-bar-style"
-      content="black-translucent"
-    />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!--
+      Do NOT use "black-translucent" here.
+
+      black-translucent allows page content to intentionally
+      extend underneath the iOS status bar.
+
+      "default" + the safe-area CSS keeps RotomPC's navbar
+      clear of the status bar / Dynamic Island.
+    -->
+
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 
     <meta name="apple-mobile-web-app-title" content="RotomPC" />
 
-    <link rel="icon" type="image/svg+xml" href="/rotompc-icon.svg" />
+    <!-- ===================================================
+         INSTALLED-MODE DETECTION
+
+         iOS historically exposed navigator.standalone,
+         while modern browsers support display-mode.
+
+         The class is used by pwa-safe-area.css.
+    ==================================================== -->
+
+    <script>
+      (() => {
+        const isStandalone =
+          window.matchMedia?.("(display-mode: standalone)")?.matches ||
+          window.navigator.standalone === true;
+
+        if (isStandalone) {
+          document.documentElement.classList.add("rotompc-standalone");
+        }
+      })();
+    </script>
+
+    <!-- ===================================================
+         SAFE AREA
+    ==================================================== -->
+
+    <link rel="stylesheet" href="/pwa-safe-area.css" />
 
     <title>RotomPC</title>
   </head>

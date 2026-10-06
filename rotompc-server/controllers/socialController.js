@@ -19,6 +19,7 @@ const PUBLIC_TRAINER_FIELDS = [
   "gender",
   "region",
   "favoriteType",
+  "favoritePokemon",
   "bio",
   "profileVisibility",
   "isActive",
@@ -31,12 +32,31 @@ const PUBLIC_TRAINER_FIELDS = [
 
 const isValidId = (id) => mongoose.isValidObjectId(id);
 
-const serializeTrainer = (trainer) => {
+const normalizeId = (value) => String(value || "").trim();
+
+const serializePokemon = (pokemon) => {
+  if (!pokemon) {
+    return {
+      id: null,
+      name: "",
+    };
+  }
+
+  return {
+    id: pokemon.id ?? null,
+
+    name: pokemon.name || "",
+  };
+};
+
+const serializeTrainer = (trainer, options = {}) => {
   if (!trainer) {
     return null;
   }
 
-  return {
+  const { includeCounts = false } = options;
+
+  const result = {
     id: trainer._id,
 
     _id: trainer._id,
@@ -55,18 +75,121 @@ const serializeTrainer = (trainer) => {
 
     favoriteType: trainer.favoriteType || "",
 
+    favoritePokemon: serializePokemon(trainer.favoritePokemon),
+
     bio: trainer.bio || "",
 
     profileVisibility: trainer.profileVisibility || "public",
 
     createdAt: trainer.createdAt || null,
   };
+
+  if (includeCounts) {
+    result.followersCount = Array.isArray(trainer.followers)
+      ? trainer.followers.length
+      : 0;
+
+    result.followingCount = Array.isArray(trainer.following)
+      ? trainer.following.length
+      : 0;
+  }
+
+  return result;
 };
 
-const getTrainer = async (id) =>
-  User.findById(id).select(
+const getTrainer = async (id) => {
+  if (!isValidId(id)) {
+    return null;
+  }
+
+  return User.findById(id).select(
     [PUBLIC_TRAINER_FIELDS, "followers", "following"].join(" "),
   );
+};
+
+const getPublicTrainer = async (id) => {
+  const trainer = await getTrainer(id);
+
+  if (!trainer) {
+    return {
+      trainer: null,
+
+      error: {
+        status: 404,
+
+        message: "Trainer not found.",
+      },
+    };
+  }
+
+  if (trainer.isActive === false) {
+    return {
+      trainer: null,
+
+      error: {
+        status: 404,
+
+        message: "Trainer not found.",
+      },
+    };
+  }
+
+  if (trainer.profileVisibility === "private") {
+    return {
+      trainer: null,
+
+      error: {
+        status: 403,
+
+        message: "This trainer profile is private.",
+      },
+    };
+  }
+
+  return {
+    trainer,
+
+    error: null,
+  };
+};
+
+/* =========================================================
+   GET SOCIAL PROFILE
+
+   Public Trainer-ID-style information.
+========================================================= */
+
+const getSocialProfile = async (req, res) => {
+  try {
+    const targetUserId = normalizeId(req.params.userId || req.params.id);
+
+    if (!isValidId(targetUserId)) {
+      return res.status(400).json({
+        message: "Invalid trainer ID.",
+      });
+    }
+
+    const { trainer, error } = await getPublicTrainer(targetUserId);
+
+    if (error) {
+      return res.status(error.status).json({
+        message: error.message,
+      });
+    }
+
+    return res.json({
+      profile: serializeTrainer(trainer, {
+        includeCounts: true,
+      }),
+    });
+  } catch (error) {
+    console.error("getSocialProfile error:", error);
+
+    return res.status(500).json({
+      message: "Unable to load trainer profile.",
+    });
+  }
+};
 
 /* =========================================================
    FOLLOW USER
@@ -74,9 +197,9 @@ const getTrainer = async (id) =>
 
 const followUser = async (req, res) => {
   try {
-    const currentUserId = String(req.user.id);
+    const currentUserId = normalizeId(req.user?.id);
 
-    const targetUserId = String(req.params.userId || req.params.id || "");
+    const targetUserId = normalizeId(req.params.userId || req.params.id);
 
     if (!isValidId(currentUserId) || !isValidId(targetUserId)) {
       return res.status(400).json({
@@ -108,117 +231,140 @@ const followUser = async (req, res) => {
       });
     }
 
-    const alreadyFollowing = currentUser.following?.some(
-      (id) => String(id) === targetUserId,
-    );
-
-    if (alreadyFollowing) {
-      return res.json({
-        following: true,
-
-        berryReward: 0,
-
-        followersCount: targetUser.followers?.length || 0,
-
-        followingCount: currentUser.following?.length || 0,
-
-        message: "Already following trainer.",
+    if (targetUser.profileVisibility === "private") {
+      return res.status(403).json({
+        message: "This trainer profile is private.",
       });
     }
 
-    /*
-     * Query includes $ne so only one
-     * concurrent request can actually
-     * establish this new relationship.
-     */
-    const updatedCurrentUser = await User.findOneAndUpdate(
-      {
-        _id: currentUserId,
-
-        following: {
-          $ne: targetUser._id,
-        },
-      },
-
-      {
-        $addToSet: {
-          following: targetUser._id,
-        },
-      },
-
-      {
-        new: true,
-      },
-    ).select("following isActive");
-
-    /*
-     * If this became null another
-     * request beat us to the follow.
-     */
-    if (!updatedCurrentUser) {
-      const refreshed = await getTrainer(targetUserId);
-
-      return res.json({
-        following: true,
-
-        berryReward: 0,
-
-        followersCount: refreshed?.followers?.length || 0,
-
-        message: "Already following trainer.",
-      });
-    }
-
-    const updatedTarget = await User.findByIdAndUpdate(
-      targetUserId,
-
-      {
-        $addToSet: {
-          followers: currentUser._id,
-        },
-      },
-
-      {
-        new: true,
-      },
-    ).select("followers");
+    const alreadyFollowing =
+      Array.isArray(currentUser.following) &&
+      currentUser.following.some((id) => String(id) === targetUserId);
 
     /* -----------------------------------------------------
-         +5 BERRY REWARD
-      ----------------------------------------------------- */
+       ALREADY FOLLOWING
+
+       Repair the reverse edge if an old record happened
+       to become inconsistent.
+    ----------------------------------------------------- */
+
+    if (alreadyFollowing) {
+      await User.updateOne(
+        {
+          _id: targetUserId,
+        },
+
+        {
+          $addToSet: {
+            followers: currentUser._id,
+          },
+        },
+      );
+
+      const [refreshedCurrent, refreshedTarget] = await Promise.all([
+        User.findById(currentUserId).select("following"),
+
+        User.findById(targetUserId).select("followers following"),
+      ]);
+
+      return res.json({
+        following: true,
+
+        followsYou:
+          refreshedTarget?.following?.some(
+            (id) => String(id) === currentUserId,
+          ) || false,
+
+        berryReward: 0,
+
+        followersCount: refreshedTarget?.followers?.length || 0,
+
+        followingCount: refreshedTarget?.following?.length || 0,
+
+        yourFollowingCount: refreshedCurrent?.following?.length || 0,
+
+        message: "Already following trainer.",
+      });
+    }
+
+    /* -----------------------------------------------------
+       CREATE RELATIONSHIP
+    ----------------------------------------------------- */
+
+    await Promise.all([
+      User.updateOne(
+        {
+          _id: currentUserId,
+        },
+
+        {
+          $addToSet: {
+            following: targetUser._id,
+          },
+        },
+      ),
+
+      User.updateOne(
+        {
+          _id: targetUserId,
+        },
+
+        {
+          $addToSet: {
+            followers: currentUser._id,
+          },
+        },
+      ),
+    ]);
+
+    /* -----------------------------------------------------
+       +5 BERRIES ONCE
+
+       BuddyReward ledger prevents:
+       follow -> unfollow -> follow farming.
+    ----------------------------------------------------- */
 
     let reward = {
       amount: 0,
+
       berries: null,
     };
 
     try {
       reward = await awardBerriesOnce(
         currentUser._id,
+
         "follow",
+
         targetUser._id,
       );
     } catch (rewardError) {
-      /*
-       * Following succeeded.
-       * Do not roll it back just
-       * because the reward service
-       * encountered an unexpected
-       * failure.
-       */
       console.error("Follow berry reward error:", rewardError);
     }
 
+    const [refreshedCurrent, refreshedTarget] = await Promise.all([
+      User.findById(currentUserId).select("following"),
+
+      User.findById(targetUserId).select("followers following"),
+    ]);
+
     return res.json({
       following: true,
+
+      followsYou:
+        refreshedTarget?.following?.some(
+          (id) => String(id) === currentUserId,
+        ) || false,
 
       berryReward: reward.amount || 0,
 
       berries: reward.berries ?? null,
 
-      followersCount: updatedTarget?.followers?.length || 0,
+      followersCount: refreshedTarget?.followers?.length || 0,
 
-      followingCount: updatedCurrentUser?.following?.length || 0,
+      followingCount: refreshedTarget?.following?.length || 0,
+
+      yourFollowingCount: refreshedCurrent?.following?.length || 0,
 
       message:
         reward.amount > 0
@@ -240,9 +386,9 @@ const followUser = async (req, res) => {
 
 const unfollowUser = async (req, res) => {
   try {
-    const currentUserId = String(req.user.id);
+    const currentUserId = normalizeId(req.user?.id);
 
-    const targetUserId = String(req.params.userId || req.params.id || "");
+    const targetUserId = normalizeId(req.params.userId || req.params.id);
 
     if (!isValidId(currentUserId) || !isValidId(targetUserId)) {
       return res.status(400).json({
@@ -259,7 +405,7 @@ const unfollowUser = async (req, res) => {
     const [currentUser, targetUser] = await Promise.all([
       User.findById(currentUserId).select("_id following isActive"),
 
-      User.findById(targetUserId).select("_id followers isActive"),
+      User.findById(targetUserId).select("_id followers following isActive"),
     ]);
 
     if (!currentUser || !targetUser) {
@@ -268,72 +414,57 @@ const unfollowUser = async (req, res) => {
       });
     }
 
-    const currentlyFollowing = currentUser.following?.some(
-      (id) => String(id) === targetUserId,
-    );
-
-    if (!currentlyFollowing) {
-      return res.json({
-        following: false,
-
-        berryReward: 0,
-
-        followersCount: targetUser.followers?.length || 0,
-
-        followingCount: currentUser.following?.length || 0,
-
-        message: "Trainer is not currently followed.",
-      });
-    }
-
-    const [updatedCurrentUser, updatedTarget] = await Promise.all([
-      User.findByIdAndUpdate(
-        currentUserId,
+    await Promise.all([
+      User.updateOne(
+        {
+          _id: currentUserId,
+        },
 
         {
           $pull: {
             following: targetUser._id,
           },
         },
+      ),
 
+      User.updateOne(
         {
-          new: true,
+          _id: targetUserId,
         },
-      ).select("following"),
-
-      User.findByIdAndUpdate(
-        targetUserId,
 
         {
           $pull: {
             followers: currentUser._id,
           },
         },
-
-        {
-          new: true,
-        },
-      ).select("followers"),
+      ),
     ]);
 
     /*
-     * IMPORTANT:
-     *
-     * BuddyReward is deliberately
-     * left untouched. If the trainer
-     * follows this same user again,
-     * awardBerriesOnce() sees the
-     * old reward ledger row and
-     * returns zero.
+     * BuddyReward is intentionally NOT deleted.
      */
+
+    const [refreshedCurrent, refreshedTarget] = await Promise.all([
+      User.findById(currentUserId).select("following"),
+
+      User.findById(targetUserId).select("followers following"),
+    ]);
+
     return res.json({
       following: false,
 
+      followsYou:
+        refreshedTarget?.following?.some(
+          (id) => String(id) === currentUserId,
+        ) || false,
+
       berryReward: 0,
 
-      followersCount: updatedTarget?.followers?.length || 0,
+      followersCount: refreshedTarget?.followers?.length || 0,
 
-      followingCount: updatedCurrentUser?.following?.length || 0,
+      followingCount: refreshedTarget?.following?.length || 0,
+
+      yourFollowingCount: refreshedCurrent?.following?.length || 0,
 
       message: "Trainer unfollowed.",
     });
@@ -352,9 +483,9 @@ const unfollowUser = async (req, res) => {
 
 const getFollowStatus = async (req, res) => {
   try {
-    const currentUserId = String(req.user.id);
+    const currentUserId = normalizeId(req.user?.id);
 
-    const targetUserId = String(req.params.userId || req.params.id || "");
+    const targetUserId = normalizeId(req.params.userId || req.params.id);
 
     if (!isValidId(currentUserId) || !isValidId(targetUserId)) {
       return res.status(400).json({
@@ -363,9 +494,11 @@ const getFollowStatus = async (req, res) => {
     }
 
     const [currentUser, targetUser] = await Promise.all([
-      User.findById(currentUserId).select("following"),
+      User.findById(currentUserId).select("following followers"),
 
-      User.findById(targetUserId).select("followers isActive"),
+      User.findById(targetUserId).select(
+        ["followers", "following", "profileVisibility", "isActive"].join(" "),
+      ),
     ]);
 
     if (!currentUser || !targetUser) {
@@ -374,13 +507,26 @@ const getFollowStatus = async (req, res) => {
       });
     }
 
+    if (targetUser.isActive === false) {
+      return res.status(404).json({
+        message: "Trainer not found.",
+      });
+    }
+
     const following =
       currentUser.following?.some((id) => String(id) === targetUserId) || false;
+
+    const followsYou =
+      targetUser.following?.some((id) => String(id) === currentUserId) || false;
 
     return res.json({
       following,
 
+      followsYou,
+
       followersCount: targetUser.followers?.length || 0,
+
+      followingCount: targetUser.following?.length || 0,
     });
   } catch (error) {
     console.error("getFollowStatus error:", error);
@@ -397,8 +543,8 @@ const getFollowStatus = async (req, res) => {
 
 const getFollowers = async (req, res) => {
   try {
-    const userId = String(
-      req.params.userId || req.params.id || req.user?.id || "",
+    const userId = normalizeId(
+      req.params.userId || req.params.id || req.user?.id,
     );
 
     if (!isValidId(userId)) {
@@ -408,7 +554,7 @@ const getFollowers = async (req, res) => {
     }
 
     const user = await User.findById(userId)
-      .select("followers profileVisibility isActive")
+      .select(["followers", "profileVisibility", "isActive"].join(" "))
       .populate({
         path: "followers",
 
@@ -416,6 +562,8 @@ const getFollowers = async (req, res) => {
 
         match: {
           isActive: true,
+
+          profileVisibility: "public",
         },
       });
 
@@ -431,12 +579,7 @@ const getFollowers = async (req, res) => {
       });
     }
 
-    /*
-     * Owner can always inspect their
-     * own list. Public profiles are
-     * visible to everyone.
-     */
-    const isOwner = req.user?.id && String(req.user.id) === String(userId);
+    const isOwner = req.user?.id && String(req.user.id) === userId;
 
     if (user.profileVisibility === "private" && !isOwner) {
       return res.status(403).json({
@@ -446,7 +589,7 @@ const getFollowers = async (req, res) => {
 
     const followers = (user.followers || [])
       .filter(Boolean)
-      .map(serializeTrainer);
+      .map((trainer) => serializeTrainer(trainer));
 
     return res.json({
       followers,
@@ -468,8 +611,8 @@ const getFollowers = async (req, res) => {
 
 const getFollowing = async (req, res) => {
   try {
-    const userId = String(
-      req.params.userId || req.params.id || req.user?.id || "",
+    const userId = normalizeId(
+      req.params.userId || req.params.id || req.user?.id,
     );
 
     if (!isValidId(userId)) {
@@ -479,7 +622,7 @@ const getFollowing = async (req, res) => {
     }
 
     const user = await User.findById(userId)
-      .select("following profileVisibility isActive")
+      .select(["following", "profileVisibility", "isActive"].join(" "))
       .populate({
         path: "following",
 
@@ -487,6 +630,8 @@ const getFollowing = async (req, res) => {
 
         match: {
           isActive: true,
+
+          profileVisibility: "public",
         },
       });
 
@@ -502,7 +647,7 @@ const getFollowing = async (req, res) => {
       });
     }
 
-    const isOwner = req.user?.id && String(req.user.id) === String(userId);
+    const isOwner = req.user?.id && String(req.user.id) === userId;
 
     if (user.profileVisibility === "private" && !isOwner) {
       return res.status(403).json({
@@ -512,7 +657,7 @@ const getFollowing = async (req, res) => {
 
     const following = (user.following || [])
       .filter(Boolean)
-      .map(serializeTrainer);
+      .map((trainer) => serializeTrainer(trainer));
 
     return res.json({
       following,
@@ -534,9 +679,9 @@ const getFollowing = async (req, res) => {
 
 const removeFollower = async (req, res) => {
   try {
-    const currentUserId = String(req.user.id);
+    const currentUserId = normalizeId(req.user?.id);
 
-    const followerId = String(req.params.userId || req.params.id || "");
+    const followerId = normalizeId(req.params.userId || req.params.id);
 
     if (!isValidId(currentUserId) || !isValidId(followerId)) {
       return res.status(400).json({
@@ -588,8 +733,16 @@ const removeFollower = async (req, res) => {
       ),
     ]);
 
+    const refreshed = await User.findById(currentUserId).select(
+      "followers following",
+    );
+
     return res.json({
       message: "Follower removed.",
+
+      followersCount: refreshed?.followers?.length || 0,
+
+      followingCount: refreshed?.following?.length || 0,
     });
   } catch (error) {
     console.error("removeFollower error:", error);
@@ -605,14 +758,11 @@ const removeFollower = async (req, res) => {
 ========================================================= */
 
 module.exports = {
+  getSocialProfile,
+
   followUser,
   unfollowUser,
 
-  /*
-   * Aliases so your existing routes
-   * can use trainer naming if they
-   * already do.
-   */
   followTrainer: followUser,
 
   unfollowTrainer: unfollowUser,

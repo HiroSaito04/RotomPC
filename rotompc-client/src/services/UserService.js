@@ -1,15 +1,27 @@
-// rotompc-client/src/services/UserService.js
+// filepath: rotompc-client/src/services/UserService.js
 
 import axios from "axios";
 
 import apiConfig from "@/config/api";
 
 /* =========================================================
-   API
+   API ROOT
 ========================================================= */
 
+const RAW_HOST = String(apiConfig.HOST || "http://localhost:8000/api")
+  .trim()
+  .replace(/\/+$/, "");
+
+const API_ROOT = RAW_HOST.endsWith("/api") ? RAW_HOST : `${RAW_HOST}/api`;
+
 const API = axios.create({
-  baseURL: `${apiConfig.HOST}/users`,
+  baseURL: `${API_ROOT}/users`,
+
+  timeout: 30000,
+
+  headers: {
+    "Content-Type": "application/json",
+  },
 });
 
 /* =========================================================
@@ -21,6 +33,8 @@ API.interceptors.request.use(
     const token = localStorage.getItem("token");
 
     if (token) {
+      config.headers = config.headers || {};
+
       config.headers.Authorization = `Bearer ${token}`;
     }
 
@@ -29,6 +43,30 @@ API.interceptors.request.use(
 
   (error) => Promise.reject(error),
 );
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+const cleanUserId = (userId) => {
+  const id = String(userId || "").trim();
+
+  if (!id) {
+    throw new Error("User ID is required.");
+  }
+
+  return id;
+};
+
+const cleanUsername = (username) => {
+  const value = String(username || "").trim();
+
+  if (!value) {
+    throw new Error("Trainer username is required.");
+  }
+
+  return value;
+};
 
 /* =========================================================
    AUTH
@@ -43,9 +81,13 @@ export const loginUser = (credentials) => API.post("/login", credentials);
 --------------------------------------------------------- */
 
 export const googleAuth = (credential) =>
-  API.post("/auth/google", {
-    credential,
-  });
+  API.post(
+    "/auth/google",
+
+    {
+      credential,
+    },
+  );
 
 /* ---------------------------------------------------------
    FACEBOOK
@@ -54,9 +96,13 @@ export const googleAuth = (credential) =>
 --------------------------------------------------------- */
 
 export const facebookAuth = (accessToken) =>
-  API.post("/auth/facebook", {
-    accessToken,
-  });
+  API.post(
+    "/auth/facebook",
+
+    {
+      accessToken,
+    },
+  );
 
 /* =========================================================
    USERS
@@ -66,9 +112,17 @@ export const fetchUsers = () => API.get("/");
 
 export const createUser = (user) => API.post("/", user);
 
-export const updateUser = (id, user) => API.put(`/${id}`, user);
+export const updateUser = (userId, user) => {
+  const id = cleanUserId(userId);
 
-export const deleteUser = (id) => API.delete(`/${id}`);
+  return API.put(`/${encodeURIComponent(id)}`, user);
+};
+
+export const deleteUser = (userId) => {
+  const id = cleanUserId(userId);
+
+  return API.delete(`/${encodeURIComponent(id)}`);
+};
 
 /* =========================================================
    CURRENT TRAINER PROFILE
@@ -86,17 +140,50 @@ export const completeTrainerProfile = (profile) =>
    PUBLIC TRAINER PROFILE
 ========================================================= */
 
-export const fetchPublicProfile = (username) =>
-  API.get(`/profile/${encodeURIComponent(username)}`);
+export const fetchPublicProfile = (username) => {
+  const value = cleanUsername(username);
+
+  return API.get(`/profile/${encodeURIComponent(value)}`);
+};
 
 /* =========================================================
    POKÉSOCIAL
 ========================================================= */
 
-export const followTrainer = (userId) => API.post(`/${userId}/follow`);
+export const followTrainer = (userId) => {
+  const id = cleanUserId(userId);
 
-export const unfollowTrainer = (userId) => API.delete(`/${userId}/follow`);
+  return API.post(`/${encodeURIComponent(id)}/follow`);
+};
 
-export const fetchFollowers = (userId) => API.get(`/${userId}/followers`);
+export const unfollowTrainer = (userId) => {
+  const id = cleanUserId(userId);
 
-export const fetchFollowing = (userId) => API.get(`/${userId}/following`);
+  return API.delete(`/${encodeURIComponent(id)}/follow`);
+};
+
+export const fetchFollowers = (userId) => {
+  const id = cleanUserId(userId);
+
+  return API.get(`/${encodeURIComponent(id)}/followers`);
+};
+
+export const fetchFollowing = (userId) => {
+  const id = cleanUserId(userId);
+
+  return API.get(`/${encodeURIComponent(id)}/following`);
+};
+
+export const fetchFollowStatus = (userId) => {
+  const id = cleanUserId(userId);
+
+  return API.get(`/${encodeURIComponent(id)}/follow-status`);
+};
+
+export const removeFollower = (userId) => {
+  const id = cleanUserId(userId);
+
+  return API.delete(`/${encodeURIComponent(id)}/follower`);
+};
+
+export default API;

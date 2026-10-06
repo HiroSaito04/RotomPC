@@ -1,32 +1,129 @@
-// rotompc-client/src/pages/ArticlePage/ArticlePage.jsx
+// filepath: rotompc-client/src/pages/ArticlePage/ArticlePage.jsx
 
-import React, { useEffect, useMemo, useState } from "react";
-
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import Button from "@/components/Button.jsx";
+import TrainerProfilePicture from "@/components/profile/TrainerProfilePicture";
+import TrainerProfileModal from "@/components/social/TrainerProfileModal";
 import NotFoundPage from "@/pages/NotFoundPage.jsx";
-
 import * as articleService from "@/services/ArticleService";
+
+/* =========================================================
+   CONFIG
+========================================================= */
 
 const FALLBACK_IMAGE =
   "https://ik.imagekit.io/ytwzizvepv/RotomPC/placeholder.png";
+
+const MAX_COMMENT_LENGTH = 500;
+
+const PRIVILEGED_COMMENT_ROLES = new Set(["admin", "editor"]);
 
 /* =========================================================
    HELPERS
 ========================================================= */
 
-const getId = (value) => {
-  if (!value) {
-    return null;
+const getOwnerId = (article) => {
+  if (!article?.userId) {
+    return "";
   }
 
-  if (typeof value === "object") {
-    return value._id || value.id || null;
+  if (typeof article.userId === "object") {
+    return article.userId._id || article.userId.id || "";
   }
 
-  return value;
+  return article.userId;
 };
+
+const getCommentUserId = (comment) => {
+  if (!comment?.user) {
+    return "";
+  }
+
+  if (typeof comment.user === "object") {
+    return comment.user._id || comment.user.id || "";
+  }
+
+  return String(comment.user);
+};
+
+const getCommentId = (comment) => comment?._id || comment?.id || "";
+
+const getRelativeTime = (value) => {
+  const raw = value?.$date || value;
+
+  const date = new Date(raw);
+
+  if (Number.isNaN(date.getTime())) {
+    return "RECENT";
+  }
+
+  const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+
+  if (seconds < 60) {
+    return "JUST NOW";
+  }
+
+  const intervals = [
+    ["YEAR", 31536000],
+    ["MONTH", 2592000],
+    ["WEEK", 604800],
+    ["DAY", 86400],
+    ["HOUR", 3600],
+    ["MIN", 60],
+  ];
+
+  for (const [label, amount] of intervals) {
+    if (seconds >= amount) {
+      const count = Math.floor(seconds / amount);
+
+      return `${count} ${label}${count === 1 ? "" : "S"} AGO`;
+    }
+  }
+
+  return "RECENT";
+};
+
+const normalizeContent = (value) => {
+  if (Array.isArray(value)) {
+    return value
+      .map((paragraph) => String(paragraph || "").trim())
+      .filter(Boolean);
+  }
+
+  const text = String(value || "").trim();
+
+  if (!text) {
+    return [];
+  }
+
+  return text
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+};
+
+const normalizeComments = (data) => {
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (Array.isArray(data?.comments)) {
+    return data.comments;
+  }
+
+  if (Array.isArray(data?.data)) {
+    return data.data;
+  }
+
+  return [];
+};
+
+const normalizeRole = (role) =>
+  String(role || "")
+    .trim()
+    .toLowerCase();
 
 /* =========================================================
    PAGE
@@ -37,32 +134,24 @@ function ArticlePage() {
 
   const navigate = useNavigate();
 
+  /* =======================================================
+     ARTICLE
+  ======================================================= */
+
   const [article, setArticle] = useState(null);
 
   const [loading, setLoading] = useState(true);
 
   const [loadError, setLoadError] = useState("");
 
+  /* =======================================================
+     IMAGE
+  ======================================================= */
+
   const [imageFailed, setImageFailed] = useState(false);
 
   /* =======================================================
-     AUTH
-  ======================================================= */
-
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    Boolean(localStorage.getItem("token")),
-  );
-
-  const [currentUserId, setCurrentUserId] = useState(
-    localStorage.getItem("id"),
-  );
-
-  const [currentRole, setCurrentRole] = useState(
-    localStorage.getItem("role") || "",
-  );
-
-  /* =======================================================
-     LIKE
+     LIKES
   ======================================================= */
 
   const [liked, setLiked] = useState(false);
@@ -70,8 +159,6 @@ function ArticlePage() {
   const [likesCount, setLikesCount] = useState(0);
 
   const [likeLoading, setLikeLoading] = useState(false);
-
-  const [interactionMessage, setInteractionMessage] = useState(null);
 
   /* =======================================================
      COMMENTS
@@ -81,21 +168,41 @@ function ArticlePage() {
 
   const [commentsLoading, setCommentsLoading] = useState(false);
 
+  const [commentsError, setCommentsError] = useState("");
+
   const [commentBody, setCommentBody] = useState("");
 
-  const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [commentPosting, setCommentPosting] = useState(false);
 
-  const [commentError, setCommentError] = useState("");
-
-  const [deletingCommentId, setDeletingCommentId] = useState(null);
+  const [deletingCommentId, setDeletingCommentId] = useState("");
 
   /* =======================================================
-     DERIVED
+     UI
+  ======================================================= */
+
+  const [interactionMessage, setInteractionMessage] = useState(null);
+
+  const [selectedTrainer, setSelectedTrainer] = useState(null);
+
+  const [isAuthenticated, setIsAuthenticated] = useState(() =>
+    Boolean(localStorage.getItem("token")),
+  );
+
+  const messageTimeoutRef = useRef(null);
+
+  const commentInputRef = useRef(null);
+
+  /* =======================================================
+     SESSION
   ======================================================= */
 
   const articleId = article?._id || null;
 
-  const articleOwnerId = getId(article?.userId);
+  const currentUserId = localStorage.getItem("id") || "";
+
+  const currentUserRole = normalizeRole(localStorage.getItem("role"));
+
+  const articleOwnerId = getOwnerId(article);
 
   const isOwnArticle = Boolean(
     currentUserId &&
@@ -103,17 +210,15 @@ function ArticlePage() {
     String(currentUserId) === String(articleOwnerId),
   );
 
+  const canModerateComments = PRIVILEGED_COMMENT_ROLES.has(currentUserRole);
+
   /* =======================================================
-     AUTH SYNC
+     AUTH
   ======================================================= */
 
   useEffect(() => {
     const syncAuth = () => {
       setIsAuthenticated(Boolean(localStorage.getItem("token")));
-
-      setCurrentUserId(localStorage.getItem("id"));
-
-      setCurrentRole(localStorage.getItem("role") || "");
     };
 
     window.addEventListener("storage", syncAuth);
@@ -126,6 +231,91 @@ function ArticlePage() {
       window.removeEventListener("local-auth-update", syncAuth);
     };
   }, []);
+
+  /* =======================================================
+     CLEAN FEEDBACK TIMER
+  ======================================================= */
+
+  useEffect(
+    () => () => {
+      if (messageTimeoutRef.current) {
+        window.clearTimeout(messageTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
+  /* =======================================================
+     LOAD ARTICLE
+  ======================================================= */
+
+  useEffect(() => {
+    if (!name) {
+      setArticle(null);
+
+      setLoadError("Report name is missing.");
+
+      setLoading(false);
+
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const loadArticle = async () => {
+      try {
+        setLoading(true);
+
+        setLoadError("");
+
+        setArticle(null);
+
+        const response = await articleService.fetchArticleByName(name);
+
+        if (cancelled) {
+          return;
+        }
+
+        const result =
+          response.data?.article || response.data?.data || response.data;
+
+        if (!result || typeof result !== "object") {
+          throw new Error("Report not found.");
+        }
+
+        setArticle(result);
+
+        setLikesCount(
+          Number(result.likesCount) ||
+            (Array.isArray(result.likes) ? result.likes.length : 0),
+        );
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        console.error("Article loading error:", error);
+
+        setLoadError(
+          error.response?.data?.message ||
+            error.message ||
+            "Unable to load report.",
+        );
+
+        setArticle(null);
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadArticle();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [name]);
 
   /* =======================================================
      IMAGE
@@ -152,170 +342,23 @@ function ArticlePage() {
   }, [articleImage]);
 
   /* =======================================================
-     TIME
-  ======================================================= */
-
-  const getRelativeTime = (value) => {
-    if (!value) {
-      return "RECENT";
-    }
-
-    try {
-      const dateValue =
-        typeof value === "object" && value.$date ? value.$date : value;
-
-      const createdDate = new Date(dateValue);
-
-      if (Number.isNaN(createdDate.getTime())) {
-        return "RECENT";
-      }
-
-      const secondsDelta = Math.max(
-        0,
-        Math.floor((Date.now() - createdDate.getTime()) / 1000),
-      );
-
-      if (secondsDelta < 60) {
-        return "JUST NOW";
-      }
-
-      const intervals = [
-        ["year", 31536000],
-        ["month", 2592000],
-        ["week", 604800],
-        ["day", 86400],
-        ["hour", 3600],
-        ["minute", 60],
-      ];
-
-      for (const [label, amount] of intervals) {
-        const count = Math.floor(secondsDelta / amount);
-
-        if (count >= 1) {
-          return new Intl.RelativeTimeFormat("en", {
-            numeric: "always",
-          })
-            .format(-count, label)
-            .toUpperCase();
-        }
-      }
-
-      return "JUST NOW";
-    } catch {
-      return "RECENT";
-    }
-  };
-
-  /* =======================================================
-     CONTENT
-  ======================================================= */
-
-  const getFormattedContent = () => {
-    if (!article?.content) {
-      return [];
-    }
-
-    const paragraphs = Array.isArray(article.content)
-      ? article.content.filter(Boolean).map((item) => String(item))
-      : String(article.content).split(/\n{2,}/);
-
-    return paragraphs
-      .map((paragraph) => {
-        const lines = paragraph.split("\n");
-
-        const fixedLines = [];
-
-        lines.forEach((line) => {
-          const trimmed = line.trim();
-
-          const previous = fixedLines[fixedLines.length - 1];
-
-          const shouldAttach =
-            previous &&
-            trimmed.length > 0 &&
-            trimmed.length <= 45 &&
-            !/^[•\-*0-9]/.test(trimmed) &&
-            !/[.!?]"?$/.test(previous.trim());
-
-          if (shouldAttach) {
-            fixedLines[fixedLines.length - 1] = `${previous} ${trimmed}`;
-          } else {
-            fixedLines.push(line);
-          }
-        });
-
-        return fixedLines.join("\n");
-      })
-      .filter(Boolean);
-  };
-
-  /* =======================================================
-     LOAD ARTICLE
-  ======================================================= */
-
-  useEffect(() => {
-    if (!name) {
-      setLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-
-    const loadArticle = async () => {
-      try {
-        setLoading(true);
-
-        setLoadError("");
-
-        const response = await articleService.fetchArticleByName(name);
-
-        if (cancelled) {
-          return;
-        }
-
-        const loaded = response.data;
-
-        setArticle(loaded);
-
-        setLiked(Boolean(loaded?.liked));
-
-        setLikesCount(Number(loaded?.likesCount) || 0);
-      } catch (error) {
-        if (cancelled) {
-          return;
-        }
-
-        console.error("Unable to load article:", error);
-
-        setArticle(null);
-
-        setLoadError(error.response?.data?.message || "Unable to load report.");
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadArticle();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [name]);
-
-  /* =======================================================
      LIKE STATUS
   ======================================================= */
 
   useEffect(() => {
-    if (!articleId || !isAuthenticated) {
-      return;
+    if (!articleId) {
+      return undefined;
+    }
+
+    if (!isAuthenticated) {
+      setLiked(false);
+
+      return undefined;
     }
 
     let cancelled = false;
 
-    const loadLikeStatus = async () => {
+    const loadStatus = async () => {
       try {
         const response = await articleService.getArticleLikeStatus(articleId);
 
@@ -327,11 +370,21 @@ function ArticlePage() {
 
         setLikesCount(Number(response.data?.likesCount) || 0);
       } catch (error) {
-        console.error("Unable to load like status:", error);
+        if (cancelled) {
+          return;
+        }
+
+        console.error("Like status error:", error);
+
+        if (error.response?.status === 401) {
+          setIsAuthenticated(false);
+
+          setLiked(false);
+        }
       }
     };
 
-    loadLikeStatus();
+    loadStatus();
 
     return () => {
       cancelled = true;
@@ -339,81 +392,80 @@ function ArticlePage() {
   }, [articleId, isAuthenticated]);
 
   /* =======================================================
-     COMMENTS LOAD
+     LOAD COMMENTS
   ======================================================= */
 
-  useEffect(() => {
-    if (!articleId) {
-      return;
-    }
+  const loadComments = useCallback(
+    async (silent = false) => {
+      if (!articleId) {
+        setComments([]);
 
-    let cancelled = false;
+        return;
+      }
 
-    const loadComments = async () => {
       try {
-        setCommentsLoading(true);
+        if (!silent) {
+          setCommentsLoading(true);
+        }
 
-        setCommentError("");
+        setCommentsError("");
 
         const response = await articleService.fetchArticleComments(articleId);
 
-        if (cancelled) {
-          return;
-        }
-
-        setComments(Array.isArray(response.data) ? response.data : []);
+        setComments(normalizeComments(response.data));
       } catch (error) {
-        if (cancelled) {
-          return;
-        }
+        console.error("Article comments loading error:", error);
 
-        console.error("Unable to load comments:", error);
-
-        setCommentError(
-          error.response?.data?.message || "Unable to load comments.",
+        setCommentsError(
+          error.response?.data?.message ||
+            error.message ||
+            "Unable to load comments.",
         );
       } finally {
-        if (!cancelled) {
+        if (!silent) {
           setCommentsLoading(false);
         }
       }
-    };
-
-    loadComments();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [articleId]);
-
-  /* =======================================================
-     HASH
-  ======================================================= */
+    },
+    [articleId],
+  );
 
   useEffect(() => {
-    if (article && window.location.hash === "#comments") {
-      window.setTimeout(() => {
-        document.getElementById("comments")?.scrollIntoView({
-          behavior: "smooth",
+    if (!articleId) {
+      setComments([]);
 
-          block: "start",
-        });
-      }, 150);
+      setCommentsError("");
+
+      return;
     }
-  }, [article]);
+
+    loadComments();
+  }, [articleId, loadComments]);
 
   /* =======================================================
-     LIKE
+     FEEDBACK
   ======================================================= */
 
-  const showInteractionMessage = (message, type = "normal") => {
+  const showMessage = (message, type = "normal") => {
+    if (messageTimeoutRef.current) {
+      window.clearTimeout(messageTimeoutRef.current);
+    }
+
     setInteractionMessage({
       message,
       type,
     });
 
-    window.setTimeout(() => setInteractionMessage(null), 2200);
+    messageTimeoutRef.current = window.setTimeout(() => {
+      setInteractionMessage(null);
+
+      messageTimeoutRef.current = null;
+    }, 2400);
   };
+
+  /* =======================================================
+     LIKE
+  ======================================================= */
 
   const handleLike = async () => {
     if (!articleId || likeLoading) {
@@ -427,7 +479,7 @@ function ArticlePage() {
     }
 
     if (isOwnArticle) {
-      showInteractionMessage("You cannot like your own report.", "error");
+      showMessage("You cannot like your own report.", "error");
 
       return;
     }
@@ -449,16 +501,19 @@ function ArticlePage() {
 
       const reward = Number(response.data?.berryReward) || 0;
 
-      showInteractionMessage(
-        reward > 0
-          ? `+${reward} Berry`
-          : nextLiked
-            ? "Report liked"
-            : "Like removed",
-        reward > 0 ? "reward" : "normal",
-      );
+      if (reward > 0) {
+        showMessage(`+${reward} Berry`, "reward");
+      } else {
+        showMessage(nextLiked ? "Report liked." : "Like removed.");
+      }
     } catch (error) {
-      showInteractionMessage(
+      console.error("Like error:", error);
+
+      if (error.response?.status === 401) {
+        setIsAuthenticated(false);
+      }
+
+      showMessage(
         error.response?.data?.message || "Unable to update like.",
         "error",
       );
@@ -468,11 +523,31 @@ function ArticlePage() {
   };
 
   /* =======================================================
+     COMMENT INPUT
+  ======================================================= */
+
+  const handleCommentChange = (event) => {
+    const value = event.target.value;
+
+    if (value.length > MAX_COMMENT_LENGTH) {
+      return;
+    }
+
+    setCommentBody(value);
+
+    setCommentsError("");
+  };
+
+  /* =======================================================
      CREATE COMMENT
   ======================================================= */
 
-  const handleCommentSubmit = async (event) => {
+  const handleSubmitComment = async (event) => {
     event.preventDefault();
+
+    if (!articleId || commentPosting) {
+      return;
+    }
 
     if (!isAuthenticated) {
       navigate("/auth/signin");
@@ -480,39 +555,60 @@ function ArticlePage() {
       return;
     }
 
-    const body = commentBody.trim();
+    const cleanBody = commentBody.trim();
 
-    if (!body) {
-      setCommentError("Write a comment first.");
+    if (!cleanBody) {
+      setCommentsError("Write a comment before posting.");
+
+      commentInputRef.current?.focus();
 
       return;
     }
 
-    if (body.length > 500) {
-      setCommentError("Comments are limited to 500 characters.");
+    if (cleanBody.length > MAX_COMMENT_LENGTH) {
+      setCommentsError(
+        `Comments cannot exceed ${MAX_COMMENT_LENGTH} characters.`,
+      );
 
       return;
     }
 
     try {
-      setCommentSubmitting(true);
+      setCommentPosting(true);
 
-      setCommentError("");
+      setCommentsError("");
 
       const response = await articleService.createArticleComment(
         articleId,
-        body,
+        cleanBody,
       );
 
-      setComments((current) => [...current, response.data]);
+      const createdComment =
+        response.data?.comment || response.data?.data || response.data;
+
+      if (createdComment && typeof createdComment === "object") {
+        setComments((current) => [...current, createdComment]);
+      } else {
+        await loadComments(true);
+      }
 
       setCommentBody("");
+
+      showMessage("Comment posted.", "success");
     } catch (error) {
-      setCommentError(
-        error.response?.data?.message || "Unable to post comment.",
+      console.error("Create comment error:", error);
+
+      if (error.response?.status === 401) {
+        setIsAuthenticated(false);
+      }
+
+      setCommentsError(
+        error.response?.data?.message ||
+          error.message ||
+          "Unable to post comment.",
       );
     } finally {
-      setCommentSubmitting(false);
+      setCommentPosting(false);
     }
   };
 
@@ -521,28 +617,90 @@ function ArticlePage() {
   ======================================================= */
 
   const handleDeleteComment = async (comment) => {
-    if (!comment?._id || deletingCommentId) {
+    const commentId = getCommentId(comment);
+
+    if (!articleId || !commentId || deletingCommentId) {
+      return;
+    }
+
+    if (!isAuthenticated) {
+      navigate("/auth/signin");
+
+      return;
+    }
+
+    const confirmed = window.confirm("Delete this comment?");
+
+    if (!confirmed) {
       return;
     }
 
     try {
-      setDeletingCommentId(comment._id);
+      setDeletingCommentId(commentId);
 
-      setCommentError("");
+      setCommentsError("");
 
-      await articleService.deleteArticleComment(articleId, comment._id);
+      await articleService.deleteArticleComment(articleId, commentId);
 
       setComments((current) =>
-        current.filter((item) => String(item._id) !== String(comment._id)),
+        current.filter(
+          (item) => String(getCommentId(item)) !== String(commentId),
+        ),
       );
+
+      showMessage("Comment deleted.");
     } catch (error) {
-      setCommentError(
-        error.response?.data?.message || "Unable to delete comment.",
+      console.error("Delete comment error:", error);
+
+      if (error.response?.status === 401) {
+        setIsAuthenticated(false);
+      }
+
+      setCommentsError(
+        error.response?.data?.message ||
+          error.message ||
+          "Unable to delete comment.",
       );
     } finally {
-      setDeletingCommentId(null);
+      setDeletingCommentId("");
     }
   };
+
+  /* =======================================================
+     TRAINER
+  ======================================================= */
+
+  const openTrainer = () => {
+    if (!articleOwnerId) {
+      return;
+    }
+
+    setSelectedTrainer({
+      id: articleOwnerId,
+
+      username: article.author || "",
+    });
+  };
+
+  const openCommentTrainer = (comment) => {
+    const userId = getCommentUserId(comment);
+
+    if (!userId) {
+      return;
+    }
+
+    setSelectedTrainer({
+      id: userId,
+
+      username: comment?.author || "",
+    });
+  };
+
+  /* =======================================================
+     CONTENT
+  ======================================================= */
+
+  const paragraphs = normalizeContent(article?.content);
 
   /* =======================================================
      LOADING
@@ -556,27 +714,38 @@ function ArticlePage() {
           min-h-screen
           items-center
           justify-center
+
           bg-[#f8fafc]
         "
       >
         <div
           className="
             rounded-3xl
+
             border-4
-            border-zinc-900
+            border-zinc-950
+
             bg-white
+
             px-8
-            py-6
-            shadow-[8px_8px_0_#18181b]
+            py-7
+
+            text-center
+
+            shadow-[7px_7px_0_#18181b]
           "
         >
           <div
             className="
               mx-auto
+
               h-10
               w-10
+
               animate-spin
+
               rounded-full
+
               border-4
               border-zinc-200
               border-t-[#3b4cca]
@@ -586,10 +755,12 @@ function ArticlePage() {
           <p
             className="
               mt-4
-              text-[10px]
+
+              text-[9px]
               font-black
               uppercase
-              tracking-widest
+              tracking-[0.14em]
+
               text-zinc-500
             "
           >
@@ -600,330 +771,352 @@ function ArticlePage() {
     );
   }
 
+  /* =======================================================
+     NOT FOUND
+  ======================================================= */
+
   if (!article) {
     return (
-      <div
-        className="
-          flex
-          min-h-screen
-          flex-col
-          items-center
-          justify-center
-          bg-[#f8fafc]
-        "
-      >
-        {loadError && (
-          <p
-            className="
-              mb-6
-              rounded-xl
-              border-2
-              border-red-500
-              bg-red-50
-              px-4
-              py-3
-              font-bold
-              text-red-700
-            "
-          >
-            {loadError}
-          </p>
-        )}
+      <div className="min-h-screen bg-[#f8fafc]">
+        <div className="mx-auto max-w-5xl px-4 py-10">
+          {loadError && (
+            <div
+              className="
+                mb-6
 
-        <Button to="/articles" variant="secondary" size="md">
-          ← Back to PokéSocial
-        </Button>
+                rounded-xl
 
-        <NotFoundPage />
+                border-2
+                border-red-500
+
+                bg-red-50
+
+                p-4
+
+                text-sm
+                font-bold
+
+                text-red-700
+              "
+            >
+              {loadError}
+            </div>
+          )}
+
+          <Button to="/articles" size="sm">
+            ← Back to PokéSocial
+          </Button>
+
+          <NotFoundPage />
+        </div>
       </div>
     );
   }
-
-  const formattedContent = getFormattedContent();
 
   /* =======================================================
      UI
   ======================================================= */
 
   return (
-    <div
-      className="
-        min-h-screen
-        bg-[#eef1f6]
-        font-sans
-      "
-    >
-      <main
+    <>
+      <div
         className="
-          mx-auto
-          max-w-6xl
-          px-4
-          pb-16
-          pt-8
-          sm:px-6
-          sm:pt-10
-          lg:px-8
+          min-h-screen
+
+          bg-[#f8fafc]
+
+          pb-14
+
+          text-zinc-950
         "
       >
-        <div
+        <main
           className="
-            mb-8
-            flex
-            flex-wrap
-            items-center
-            justify-between
-            gap-3
+            mx-auto
+
+            w-full
+            max-w-6xl
+
+            px-4
+            py-6
+
+            sm:px-6
+            sm:py-8
           "
         >
-          <Button to="/articles" variant="secondary" size="sm">
-            ← Social Feed
-          </Button>
+          {/* ===============================================
+              TOP CONTROLS
+          ================================================ */}
 
           <div
             className="
+              mb-4
+
               flex
-              gap-2
+              items-center
+              justify-between
+              gap-3
             "
           >
-            <span
-              className="
-                rounded-full
-                border-2
-                border-zinc-900
-                bg-red-50
-                px-3
-                py-2
-                text-[10px]
-                font-black
-                text-red-500
-                shadow-[3px_3px_0_#18181b]
-              "
-            >
-              ♥ {likesCount}
-            </span>
+            <Button to="/articles" variant="secondary" size="sm">
+              ← PokéSocial
+            </Button>
 
             <span
               className="
                 rounded-full
+
                 border-2
-                border-zinc-900
-                bg-blue-50
+                border-zinc-950
+
+                bg-white
+
                 px-3
-                py-2
-                text-[10px]
+                py-1.5
+
+                text-[8px]
                 font-black
-                text-[#3b4cca]
-                shadow-[3px_3px_0_#18181b]
+                uppercase
+                tracking-[0.1em]
+
+                shadow-[2px_2px_0_#18181b]
               "
             >
-              💬 {comments.length}
+              {getRelativeTime(article.createdAt)}
             </span>
           </div>
-        </div>
 
-        <article
-          className="
-            clearfix
-          "
-        >
-          {/* IMAGE / TITLE */}
+          {/* ===============================================
+              REPORT
+          ================================================ */}
 
-          <div
+          <article
             className="
-              mb-8
-              lg:float-left
-              lg:mr-8
-              lg:w-[56%]
+              overflow-hidden
+
+              rounded-[2rem]
+
+              border-4
+              border-zinc-950
+
+              bg-white
+
+              shadow-[8px_8px_0_#18181b]
             "
           >
             <div
               className="
-                overflow-hidden
-                rounded-[2rem]
-                border-4
-                border-zinc-900
-                bg-white
-                shadow-[12px_12px_0_#18181b]
+                h-4
+
+                border-b-2
+                border-zinc-950
+
+                bg-[#3b4cca]
+              "
+            />
+
+            {/* HEADER */}
+
+            <div
+              className="
+                p-5
+
+                sm:p-7
               "
             >
-              <div
+              <span
+                className={`
+                  inline-flex
+
+                  rounded-lg
+
+                  border-2
+                  border-zinc-950
+
+                  ${article.color || "bg-red-500"}
+
+                  px-3
+                  py-1.5
+
+                  text-[8px]
+                  font-black
+                  uppercase
+                  tracking-[0.1em]
+
+                  text-white
+
+                  shadow-[2px_2px_0_#18181b]
+                `}
+              >
+                {article.date || "POKÉSOCIAL REPORT"}
+              </span>
+
+              <h1
                 className="
-                  relative
-                  aspect-video
-                  overflow-hidden
-                  border-b-4
-                  border-zinc-900
-                  bg-zinc-900
+                  mt-4
+
+                  break-words
+
+                  text-left
+                  text-3xl
+                  font-black
+                  uppercase
+                  italic
+                  leading-[0.95]
+                  tracking-tight
+
+                  sm:text-5xl
                 "
               >
+                {article.title || "Untitled Report"}
+              </h1>
+            </div>
+
+            {/* =============================================
+                IMAGE
+            ============================================== */}
+
+            <div
+              className="
+                relative
+
+                flex
+                w-full
+                items-center
+                justify-center
+
+                overflow-hidden
+
+                border-y-4
+                border-zinc-950
+
+                bg-zinc-100
+              "
+            >
+              {!imageFailed ? (
                 <img
-                  src={imageFailed ? FALLBACK_IMAGE : articleImage}
-                  alt={article.title}
+                  src={articleImage}
+                  alt={article.title || "PokéSocial report"}
                   onError={() => setImageFailed(true)}
                   className="
-                    h-full
+                    block
+
+                    h-auto
                     w-full
-                    object-cover
+                    max-w-full
+
+                    object-contain
                   "
                 />
-
+              ) : (
                 <div
                   className="
-                    pointer-events-none
-                    absolute
-                    inset-0
-                    bg-gradient-to-t
-                    from-black/25
-                    via-transparent
-                    to-transparent
-                  "
-                />
-              </div>
-
-              <div
-                className="
-                  p-6
-                  sm:p-8
-                "
-              >
-                <div
-                  className="
-                    mb-5
                     flex
-                    flex-wrap
-                    gap-3
-                  "
-                >
-                  <span
-                    className={`
-                      rounded-lg
-                      border-2
-                      border-zinc-900
-                      ${article.color || "bg-zinc-500"}
-                      px-3
-                      py-1
-                      text-[10px]
-                      font-black
-                      uppercase
-                      text-white
-                    `}
-                  >
-                    {article.date || "RECENT"}
-                  </span>
-                </div>
+                    min-h-[240px]
+                    w-full
+                    items-center
+                    justify-center
 
-                <h1
-                  className="
-                    text-4xl
+                    bg-zinc-100
+
+                    text-6xl
                     font-black
-                    uppercase
-                    italic
-                    leading-[0.9]
-                    tracking-tighter
-                    text-zinc-900
-                    sm:text-5xl
-                    lg:text-6xl
+
+                    text-zinc-300
+
+                    sm:min-h-[320px]
                   "
                 >
-                  {article.title}
-                </h1>
-
-                {article.desc && (
-                  <div
-                    className="
-                      mt-6
-                      rounded-2xl
-                      border-4
-                      border-zinc-900
-                      bg-zinc-50
-                      p-5
-                      shadow-[5px_5px_0_#18181b]
-                    "
-                  >
-                    <p
-                      className="
-                        text-base
-                        font-bold
-                        italic
-                        leading-relaxed
-                        text-zinc-700
-                      "
-                    >
-                      “{article.desc}”
-                    </p>
-                  </div>
-                )}
-              </div>
+                  R
+                </div>
+              )}
             </div>
-          </div>
 
-          {/* RIGHT */}
+            {/* =============================================
+                TRAINER + REACTIONS
+            ============================================== */}
 
-          <div
-            className="
-              space-y-6
-            "
-          >
             <div
               className="
-                rounded-[1.8rem]
-                border-4
-                border-zinc-900
+                border-b-4
+                border-zinc-950
+
                 bg-[#ffcb05]
-                p-5
-                shadow-[8px_8px_0_#18181b]
+
+                p-4
+
+                sm:p-5
               "
             >
               <div
                 className="
-                  flex
-                  items-center
-                  justify-between
-                  gap-4
+                  grid
+                  gap-3
+
+                  lg:grid-cols-[minmax(0,1fr)_auto]
+                  lg:items-center
                 "
               >
-                <div
+                <button
+                  type="button"
+                  disabled={!articleOwnerId}
+                  onClick={openTrainer}
                   className="
                     flex
                     min-w-0
                     items-center
-                    gap-4
+                    gap-3
+
+                    rounded-2xl
+
+                    border-2
+                    border-zinc-950
+
+                    bg-white
+
+                    p-3
+
+                    text-left
+
+                    shadow-[3px_3px_0_#18181b]
+
+                    transition
+
+                    hover:-translate-y-0.5
+                    hover:bg-yellow-50
+
+                    disabled:cursor-default
+                    disabled:hover:translate-y-0
+                    disabled:hover:bg-white
                   "
                 >
-                  <div
+                  <TrainerProfilePicture
+                    userId={articleOwnerId}
+                    username={article.author || ""}
+                    size="lg"
+                    roundedClassName="rounded-2xl"
                     className="
-                      flex
-                      h-14
-                      w-14
-                      shrink-0
-                      items-center
-                      justify-center
-                      rounded-2xl
-                      border-2
-                      border-zinc-900
-                      bg-white
-                      text-xl
-                      font-black
-                      shadow-[3px_3px_0_#000]
+                      shadow-[2px_2px_0_#18181b]
                     "
-                  >
-                    {article.author
-                      ? article.author.charAt(0).toUpperCase()
-                      : "?"}
-                  </div>
+                    fallbackClassName="
+                      text-xl
+                    "
+                  />
 
                   <div
                     className="
                       min-w-0
+                      flex-1
                     "
                   >
                     <p
                       className="
-                        text-[9px]
+                        text-[8px]
                         font-black
                         uppercase
-                        tracking-widest
-                        text-zinc-700
+                        tracking-[0.13em]
+
+                        text-zinc-500
                       "
                     >
                       Published By
@@ -931,234 +1124,351 @@ function ArticlePage() {
 
                     <p
                       className="
+                        mt-1
+
                         truncate
-                        text-xl
+
+                        text-lg
                         font-black
                         uppercase
                         italic
+
                         text-zinc-950
                       "
                     >
                       {article.author || "Unknown Trainer"}
                     </p>
-                  </div>
-                </div>
 
-                <span
+                    {articleOwnerId && (
+                      <p
+                        className="
+                          mt-1
+
+                          text-[8px]
+                          font-black
+                          uppercase
+                          tracking-[0.11em]
+
+                          text-[#3b4cca]
+                        "
+                      >
+                        View Trainer ID →
+                      </p>
+                    )}
+                  </div>
+                </button>
+
+                <div
                   className="
-                    shrink-0
-                    rounded-lg
-                    bg-zinc-950
-                    px-2
-                    py-1
-                    text-[9px]
-                    font-black
-                    text-yellow-400
+                    grid
+                    grid-cols-2
+                    gap-2
+
+                    sm:grid-cols-[110px_110px_minmax(130px,1fr)]
+
+                    lg:grid-cols-[96px_96px_132px]
                   "
                 >
-                  {getRelativeTime(article.createdAt)}
-                </span>
-              </div>
-
-              <div
-                className="
-                  mt-5
-                  flex
-                  items-center
-                  justify-between
-                  gap-3
-                  border-t-2
-                  border-zinc-900/20
-                  pt-4
-                "
-              >
-                <div>
-                  <p
+                  <div
                     className="
-                      text-[9px]
-                      font-black
-                      uppercase
-                      text-zinc-700
+                      rounded-xl
+
+                      border-2
+                      border-zinc-950
+
+                      bg-white
+
+                      px-3
+                      py-2.5
+
+                      shadow-[2px_2px_0_#18181b]
                     "
                   >
-                    Reactions
-                  </p>
+                    <p
+                      className="
+                        text-lg
+                        font-black
 
-                  <p
+                        text-zinc-950
+                      "
+                    >
+                      {likesCount}
+                    </p>
+
+                    <p
+                      className="
+                        mt-0.5
+
+                        text-[7px]
+                        font-black
+                        uppercase
+                        tracking-[0.08em]
+
+                        text-zinc-400
+                      "
+                    >
+                      {likesCount === 1 ? "Like" : "Likes"}
+                    </p>
+                  </div>
+
+                  <div
                     className="
-                      mt-1
-                      font-black
-                      text-zinc-950
+                      rounded-xl
+
+                      border-2
+                      border-zinc-950
+
+                      bg-white
+
+                      px-3
+                      py-2.5
+
+                      shadow-[2px_2px_0_#18181b]
                     "
                   >
-                    {likesCount} {likesCount === 1 ? "Like" : "Likes"}
-                  </p>
+                    <p
+                      className="
+                        text-lg
+                        font-black
+
+                        text-zinc-950
+                      "
+                    >
+                      {comments.length}
+                    </p>
+
+                    <p
+                      className="
+                        mt-0.5
+
+                        text-[7px]
+                        font-black
+                        uppercase
+                        tracking-[0.08em]
+
+                        text-zinc-400
+                      "
+                    >
+                      {comments.length === 1 ? "Comment" : "Comments"}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleLike}
+                    disabled={likeLoading || isOwnArticle}
+                    className={`
+                      col-span-2
+
+                      min-h-11
+
+                      rounded-xl
+
+                      border-2
+                      border-zinc-950
+
+                      px-4
+
+                      text-xs
+                      font-black
+
+                      shadow-[2px_2px_0_#18181b]
+
+                      transition
+
+                      hover:-translate-y-0.5
+
+                      disabled:cursor-not-allowed
+                      disabled:opacity-60
+                      disabled:hover:translate-y-0
+
+                      sm:col-span-1
+
+                      ${
+                        liked
+                          ? "bg-red-500 text-white"
+                          : "bg-white text-red-500"
+                      }
+                    `}
+                  >
+                    {likeLoading
+                      ? "..."
+                      : isOwnArticle
+                        ? "Your Report"
+                        : liked
+                          ? "♥ Liked"
+                          : "♡ Like"}
+                  </button>
                 </div>
-
-                <Button
-                  type="button"
-                  onClick={handleLike}
-                  disabled={likeLoading || isOwnArticle}
-                  variant="secondary"
-                  size="sm"
-                  className={
-                    liked
-                      ? "!bg-red-500 !text-white"
-                      : "!bg-white !text-red-500"
-                  }
-                >
-                  {likeLoading
-                    ? "..."
-                    : isOwnArticle
-                      ? "Your Report"
-                      : liked
-                        ? "♥ Liked"
-                        : "♡ Like"}
-                </Button>
               </div>
 
               {interactionMessage && (
                 <div
-                  className="
+                  className={`
                     mt-3
+
                     rounded-lg
+
                     border-2
-                    border-zinc-900
-                    bg-white
+
                     px-3
                     py-2
+
                     text-center
+
                     text-[9px]
                     font-black
                     uppercase
-                  "
+
+                    ${
+                      interactionMessage.type === "reward"
+                        ? "border-green-700 bg-green-50 text-green-800"
+                        : interactionMessage.type === "error"
+                          ? "border-red-700 bg-red-50 text-red-700"
+                          : interactionMessage.type === "success"
+                            ? "border-green-700 bg-green-50 text-green-800"
+                            : "border-blue-700 bg-blue-50 text-blue-700"
+                    }
+                  `}
                 >
                   {interactionMessage.message}
                 </div>
               )}
             </div>
 
+            {/* =============================================
+                DESCRIPTION + CONTENT
+
+                Both now share the exact same container,
+                padding and left alignment.
+            ============================================== */}
+
             <div
               className="
-                rounded-[1.8rem]
-                border-4
-                border-zinc-900
-                bg-white
-                p-6
-                shadow-[8px_8px_0_#18181b]
-                sm:p-8
+                p-5
+
+                text-left
+
+                sm:p-7
               "
             >
-              <div
-                className="
-                  mb-6
-                  border-b-4
-                  border-zinc-100
-                  pb-4
-                "
-              >
+              {article.desc && (
                 <p
                   className="
-                    text-[9px]
-                    font-black
-                    uppercase
-                    tracking-widest
-                    text-[#3b4cca]
-                  "
-                >
-                  Full Report
-                </p>
-              </div>
+                    text-left
 
-              {formattedContent.length > 0 ? (
-                formattedContent.map((paragraph, index) => (
-                  <p
-                    key={index}
-                    className="
-                        mb-7
-                        whitespace-pre-line
-                        text-base
-                        font-medium
-                        leading-8
-                        text-zinc-800
-                        last:mb-0
-                        sm:text-lg
-                        sm:leading-9
-                      "
-                  >
-                    {paragraph}
-                  </p>
-                ))
-              ) : (
-                <p
-                  className="
-                    text-sm
+                    text-base
+                    font-bold
                     italic
-                    text-zinc-400
+                    leading-7
+
+                    text-zinc-600
+
+                    sm:text-[17px]
                   "
                 >
-                  No report body.
+                  “{article.desc}”
                 </p>
               )}
+
+              <div
+                className={`
+                  ${article.desc ? "mt-5" : ""}
+
+                  space-y-5
+
+                  text-left
+
+                  text-[15px]
+                  font-semibold
+                  leading-7
+
+                  text-zinc-700
+
+                  sm:text-base
+                `}
+              >
+                {paragraphs.length > 0 ? (
+                  paragraphs.map((paragraph, index) => (
+                    <p key={`${index}-${paragraph.slice(0, 30)}`}>
+                      {paragraph}
+                    </p>
+                  ))
+                ) : (
+                  <p>No report content available.</p>
+                )}
+              </div>
             </div>
-          </div>
-        </article>
+          </article>
 
-        {/* =================================================
-            COMMENTS
-        ================================================== */}
+          {/* ===============================================
+              COMMENTS
+          ================================================ */}
 
-        <section
-          id="comments"
-          className="
-            clear-both
-            scroll-mt-28
-            pt-10
-          "
-        >
-          <div
+          <section
             className="
+              mt-7
+
               overflow-hidden
+
               rounded-[2rem]
+
               border-4
               border-zinc-950
+
               bg-white
+
               shadow-[8px_8px_0_#18181b]
             "
           >
+            {/* COMMENT HEADER */}
+
             <div
               className="
                 flex
                 items-center
                 justify-between
                 gap-4
+
                 border-b-[3px]
                 border-zinc-950
+
                 bg-[#3b4cca]
+
                 px-5
                 py-4
+
                 text-white
+
+                sm:px-6
               "
             >
               <div>
                 <p
                   className="
-                    text-[8px]
+                    font-mono
+
+                    text-[7px]
                     font-black
                     uppercase
                     tracking-[0.16em]
+
                     text-yellow-300
                   "
                 >
-                  Discussion
+                  PokéSocial Discussion
                 </p>
 
                 <h2
                   className="
+                    mt-1
+
                     text-xl
                     font-black
                     uppercase
                     italic
+
+                    sm:text-2xl
                   "
                 >
                   Trainer Comments
@@ -1167,38 +1477,49 @@ function ArticlePage() {
 
               <span
                 className="
-                  rounded-full
+                  flex
+                  h-10
+                  min-w-10
+                  items-center
+                  justify-center
+
+                  rounded-xl
+
                   border-2
-                  border-white/30
-                  bg-black/20
-                  px-3
-                  py-1.5
-                  text-[9px]
+                  border-zinc-950
+
+                  bg-yellow-300
+
+                  px-2
+
+                  text-sm
                   font-black
+
+                  text-zinc-950
+
+                  shadow-[2px_2px_0_#18181b]
                 "
               >
-                💬 {comments.length}
+                {comments.length}
               </span>
             </div>
 
+            {/* COMMENT COMPOSER */}
+
             <div
               className="
+                border-b-[3px]
+                border-zinc-950
+
+                bg-yellow-50
+
                 p-4
-                sm:p-6
+
+                sm:p-5
               "
             >
               {isAuthenticated ? (
-                <form
-                  onSubmit={handleCommentSubmit}
-                  className="
-                    rounded-2xl
-                    border-[3px]
-                    border-zinc-950
-                    bg-zinc-50
-                    p-4
-                    shadow-[4px_4px_0_#18181b]
-                  "
-                >
+                <form onSubmit={handleSubmitComment}>
                   <div
                     className="
                       flex
@@ -1207,247 +1528,463 @@ function ArticlePage() {
                       gap-4
                     "
                   >
-                    <label
-                      htmlFor="article-comment"
-                      className="
-                        text-[10px]
-                        font-black
-                        uppercase
-                        tracking-widest
-                        text-zinc-600
-                      "
-                    >
-                      Add Comment
-                    </label>
+                    <div>
+                      <p
+                        className="
+                          text-[8px]
+                          font-black
+                          uppercase
+                          tracking-[0.12em]
+
+                          text-zinc-500
+                        "
+                      >
+                        Join the discussion
+                      </p>
+
+                      <p
+                        className="
+                          mt-1
+
+                          text-sm
+                          font-black
+
+                          text-zinc-950
+                        "
+                      >
+                        Leave a Trainer comment
+                      </p>
+                    </div>
 
                     <span
-                      className="
-                        text-[9px]
-                        font-bold
-                        text-zinc-400
-                      "
+                      className={`
+                        font-mono
+
+                        text-[8px]
+                        font-black
+
+                        ${
+                          commentBody.length >= 450
+                            ? "text-red-600"
+                            : "text-zinc-400"
+                        }
+                      `}
                     >
-                      {commentBody.length}
-                      /500
+                      {commentBody.length}/{MAX_COMMENT_LENGTH}
                     </span>
                   </div>
 
                   <textarea
-                    id="article-comment"
+                    ref={commentInputRef}
                     value={commentBody}
-                    maxLength={500}
+                    onChange={handleCommentChange}
+                    maxLength={MAX_COMMENT_LENGTH}
                     rows={4}
-                    onChange={(event) => setCommentBody(event.target.value)}
-                    placeholder="Join the discussion..."
+                    disabled={commentPosting}
+                    placeholder="Share your thoughts about this report..."
                     className="
                       mt-3
+
+                      min-h-[110px]
                       w-full
                       resize-y
+
                       rounded-xl
-                      border-2
-                      border-zinc-300
+
+                      border-[3px]
+                      border-zinc-950
+
                       bg-white
-                      p-3
+
+                      px-4
+                      py-3
+
                       text-sm
-                      font-medium
+                      font-semibold
                       leading-6
-                      text-zinc-900
+
+                      text-zinc-950
+
                       outline-none
+
+                      transition
+
                       placeholder:text-zinc-400
-                      focus:border-[#3b4cca]
+
                       focus:ring-4
-                      focus:ring-[#3b4cca]/10
+                      focus:ring-[#3b4cca]/15
+
+                      disabled:cursor-wait
+                      disabled:opacity-60
                     "
                   />
 
                   <div
                     className="
                       mt-3
+
                       flex
-                      justify-end
+                      flex-col
+                      gap-2
+
+                      sm:flex-row
+                      sm:items-center
+                      sm:justify-between
                     "
                   >
-                    <Button
-                      type="submit"
-                      variant="primary"
-                      size="sm"
-                      disabled={commentSubmitting || !commentBody.trim()}
+                    <p
+                      className="
+                        text-[8px]
+                        font-bold
+                        uppercase
+                        tracking-[0.06em]
+
+                        text-zinc-400
+                      "
                     >
-                      {commentSubmitting ? "Posting..." : "Post Comment"}
-                    </Button>
+                      Keep it friendly and relevant to the report.
+                    </p>
+
+                    <button
+                      type="submit"
+                      disabled={commentPosting || !commentBody.trim()}
+                      className="
+                        min-h-11
+
+                        rounded-xl
+
+                        border-[3px]
+                        border-zinc-950
+
+                        bg-[#3b4cca]
+
+                        px-5
+
+                        text-xs
+                        font-black
+                        uppercase
+
+                        text-white
+
+                        shadow-[3px_3px_0_#18181b]
+
+                        transition
+
+                        hover:-translate-y-0.5
+                        hover:bg-[#3040b4]
+
+                        active:translate-x-0.5
+                        active:translate-y-0.5
+                        active:shadow-[1px_1px_0_#18181b]
+
+                        disabled:cursor-not-allowed
+                        disabled:opacity-50
+                        disabled:hover:translate-y-0
+                      "
+                    >
+                      {commentPosting ? "Posting..." : "Post Comment"}
+                    </button>
                   </div>
                 </form>
               ) : (
                 <div
                   className="
-                    rounded-xl
-                    border-2
-                    border-dashed
-                    border-zinc-300
-                    bg-zinc-50
-                    px-4
-                    py-4
-                    text-center
-                    text-sm
-                    font-semibold
-                    text-zinc-500
+                    flex
+                    flex-col
+                    gap-4
+
+                    sm:flex-row
+                    sm:items-center
+                    sm:justify-between
                   "
                 >
-                  Sign in from the navbar to join the discussion.
+                  <div>
+                    <p
+                      className="
+                        text-sm
+                        font-black
+
+                        text-zinc-950
+                      "
+                    >
+                      Want to join the discussion?
+                    </p>
+
+                    <p
+                      className="
+                        mt-1
+
+                        text-xs
+                        font-semibold
+
+                        text-zinc-500
+                      "
+                    >
+                      Sign in to leave a comment.
+                    </p>
+                  </div>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => navigate("/auth/signin")}
+                  >
+                    Sign In
+                  </Button>
                 </div>
               )}
 
-              {commentError && (
+              {commentsError && (
                 <div
                   className="
-                    mt-4
+                    mt-3
+
                     rounded-xl
+
                     border-2
-                    border-red-300
+                    border-red-500
+
                     bg-red-50
-                    px-4
-                    py-3
-                    text-sm
+
+                    px-3
+                    py-2.5
+
+                    text-xs
                     font-bold
+
                     text-red-700
                   "
                 >
-                  {commentError}
+                  {commentsError}
                 </div>
               )}
+            </div>
 
-              <div
-                className="
-                  mt-6
-                  space-y-3
-                "
-              >
-                {commentsLoading ? (
+            {/* COMMENTS LIST */}
+
+            <div
+              className="
+                p-4
+
+                sm:p-5
+              "
+            >
+              {commentsLoading ? (
+                <div
+                  className="
+                    flex
+                    min-h-[190px]
+                    flex-col
+                    items-center
+                    justify-center
+                    gap-3
+                  "
+                >
                   <div
                     className="
-                      py-8
-                      text-center
-                      text-sm
-                      font-bold
+                      h-8
+                      w-8
+
+                      animate-spin
+
+                      rounded-full
+
+                      border-[3px]
+                      border-zinc-200
+                      border-t-[#3b4cca]
+                    "
+                  />
+
+                  <p
+                    className="
+                      font-mono
+
+                      text-[8px]
+                      font-black
+                      uppercase
+                      tracking-[0.12em]
+
                       text-zinc-400
                     "
                   >
-                    Loading comments...
-                  </div>
-                ) : comments.length > 0 ? (
-                  comments.map((comment) => {
-                    const commentUserId = getId(comment.user);
+                    Loading Comments
+                  </p>
+                </div>
+              ) : comments.length > 0 ? (
+                <div className="space-y-3">
+                  {comments.map((comment, index) => {
+                    const commentId = getCommentId(comment);
 
-                    const canDelete =
-                      Boolean(
-                        currentUserId &&
-                        commentUserId &&
-                        String(currentUserId) === String(commentUserId),
-                      ) || ["admin", "editor"].includes(currentRole);
+                    const commenterId = getCommentUserId(comment);
+
+                    const isCommentOwner = Boolean(
+                      currentUserId &&
+                      commenterId &&
+                      String(currentUserId) === String(commenterId),
+                    );
+
+                    const canDeleteComment =
+                      isCommentOwner || canModerateComments;
 
                     return (
-                      <article
-                        key={comment._id}
+                      <div
+                        key={
+                          commentId ||
+                          `${comment.author}-${comment.createdAt}-${index}`
+                        }
                         className="
-                            rounded-2xl
-                            border-2
-                            border-zinc-200
-                            bg-white
-                            p-4
-                            transition
-                            hover:border-zinc-300
-                          "
+                          rounded-2xl
+
+                          border-[3px]
+                          border-zinc-950
+
+                          bg-white
+
+                          p-3.5
+
+                          shadow-[3px_3px_0_#18181b]
+
+                          sm:p-4
+                        "
                       >
                         <div
                           className="
-                              flex
-                              items-start
-                              gap-3
-                            "
+                            flex
+                            items-start
+                            gap-3
+                          "
                         >
-                          <div
+                          <button
+                            type="button"
+                            disabled={!commenterId}
+                            onClick={() => openCommentTrainer(comment)}
+                            aria-label={`Open ${
+                              comment.author || "Trainer"
+                            } profile`}
                             className="
-                                flex
-                                h-10
-                                w-10
-                                shrink-0
-                                items-center
-                                justify-center
-                                rounded-xl
-                                border-2
-                                border-zinc-950
-                                bg-yellow-300
-                                text-sm
-                                font-black
-                                uppercase
+                              shrink-0
+
+                              rounded-xl
+
+                              text-left
+
+                              transition
+
+                              hover:-translate-y-0.5
+
+                              disabled:cursor-default
+                              disabled:hover:translate-y-0
+                            "
+                          >
+                            <TrainerProfilePicture
+                              userId={commenterId}
+                              username={comment.author || "Trainer"}
+                              size="md"
+                              roundedClassName="rounded-xl"
+                              className="
                                 shadow-[2px_2px_0_#18181b]
                               "
-                          >
-                            {comment.author?.charAt(0)?.toUpperCase() || "?"}
-                          </div>
+                              fallbackClassName="
+                                text-sm
+                              "
+                            />
+                          </button>
 
                           <div
                             className="
-                                min-w-0
-                                flex-1
-                              "
+                              min-w-0
+                              flex-1
+                            "
                           >
                             <div
                               className="
-                                  flex
-                                  flex-wrap
-                                  items-center
-                                  justify-between
-                                  gap-2
-                                "
+                                flex
+                                flex-wrap
+                                items-start
+                                justify-between
+                                gap-2
+                              "
                             >
-                              <div>
+                              <button
+                                type="button"
+                                disabled={!commenterId}
+                                onClick={() => openCommentTrainer(comment)}
+                                className="
+                                  min-w-0
+
+                                  text-left
+
+                                  disabled:cursor-default
+                                "
+                              >
                                 <p
                                   className="
-                                      text-sm
-                                      font-black
-                                      text-zinc-950
-                                    "
+                                    truncate
+
+                                    text-sm
+                                    font-black
+
+                                    text-zinc-950
+
+                                    hover:text-[#3b4cca]
+                                  "
                                 >
-                                  {comment.author || "Trainer"}
+                                  @{comment.author || "Trainer"}
                                 </p>
 
                                 <p
                                   className="
-                                      mt-0.5
-                                      text-[8px]
-                                      font-bold
-                                      uppercase
-                                      tracking-wider
-                                      text-zinc-400
-                                    "
+                                    mt-0.5
+
+                                    font-mono
+
+                                    text-[7px]
+                                    font-black
+                                    uppercase
+                                    tracking-[0.08em]
+
+                                    text-zinc-400
+                                  "
                                 >
                                   {getRelativeTime(comment.createdAt)}
                                 </p>
-                              </div>
+                              </button>
 
-                              {canDelete && (
+                              {canDeleteComment && (
                                 <button
                                   type="button"
-                                  disabled={deletingCommentId === comment._id}
+                                  disabled={deletingCommentId === commentId}
                                   onClick={() => handleDeleteComment(comment)}
                                   className="
-                                      rounded-lg
-                                      border-2
-                                      border-transparent
-                                      px-2
-                                      py-1
-                                      text-[8px]
-                                      font-black
-                                      uppercase
-                                      text-red-500
-                                      transition
-                                      hover:border-red-200
-                                      hover:bg-red-50
-                                      disabled:opacity-40
-                                    "
+                                    shrink-0
+
+                                    rounded-lg
+
+                                    border-2
+                                    border-zinc-300
+
+                                    bg-zinc-50
+
+                                    px-2.5
+                                    py-1.5
+
+                                    text-[7px]
+                                    font-black
+                                    uppercase
+
+                                    text-zinc-500
+
+                                    transition
+
+                                    hover:border-red-500
+                                    hover:bg-red-50
+                                    hover:text-red-600
+
+                                    disabled:cursor-wait
+                                    disabled:opacity-50
+                                  "
                                 >
-                                  {deletingCommentId === comment._id
+                                  {deletingCommentId === commentId
                                     ? "..."
                                     : "Delete"}
                                 </button>
@@ -1456,72 +1993,113 @@ function ArticlePage() {
 
                             <p
                               className="
-                                  mt-3
-                                  whitespace-pre-wrap
-                                  break-words
-                                  text-sm
-                                  font-medium
-                                  leading-6
-                                  text-zinc-700
-                                "
+                                mt-3
+
+                                whitespace-pre-wrap
+                                break-words
+
+                                text-sm
+                                font-medium
+                                leading-6
+
+                                text-zinc-700
+                              "
                             >
                               {comment.body}
                             </p>
                           </div>
                         </div>
-                      </article>
+                      </div>
                     );
-                  })
-                ) : (
+                  })}
+                </div>
+              ) : (
+                <div
+                  className="
+                    flex
+                    min-h-[190px]
+                    flex-col
+                    items-center
+                    justify-center
+
+                    rounded-2xl
+
+                    border-2
+                    border-dashed
+                    border-zinc-300
+
+                    bg-zinc-50
+
+                    px-5
+
+                    text-center
+                  "
+                >
                   <div
                     className="
-                      rounded-2xl
+                      flex
+                      h-12
+                      w-12
+                      items-center
+                      justify-center
+
+                      rounded-xl
+
                       border-2
-                      border-dashed
-                      border-zinc-200
-                      bg-zinc-50
-                      py-10
-                      text-center
+                      border-zinc-950
+
+                      bg-yellow-300
+
+                      text-lg
+                      font-black
+
+                      shadow-[2px_2px_0_#18181b]
                     "
                   >
-                    <p
-                      className="
-                        text-sm
-                        font-black
-                        uppercase
-                        text-zinc-500
-                      "
-                    >
-                      No comments yet
-                    </p>
-
-                    <p
-                      className="
-                        mt-1
-                        text-xs
-                        text-zinc-400
-                      "
-                    >
-                      Start the discussion.
-                    </p>
+                    💬
                   </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
 
-        <div
-          className="
-            pt-10
-          "
-        >
-          <Button to="/articles" variant="secondary" size="md">
-            ← Return to PokéSocial
-          </Button>
-        </div>
-      </main>
-    </div>
+                  <h3
+                    className="
+                      mt-4
+
+                      text-base
+                      font-black
+                      uppercase
+                    "
+                  >
+                    No Comments Yet
+                  </h3>
+
+                  <p
+                    className="
+                      mt-1
+
+                      max-w-sm
+
+                      text-xs
+                      font-semibold
+                      leading-5
+
+                      text-zinc-400
+                    "
+                  >
+                    Be the first Trainer to discuss this report.
+                  </p>
+                </div>
+              )}
+            </div>
+          </section>
+        </main>
+      </div>
+
+      <TrainerProfileModal
+        open={Boolean(selectedTrainer)}
+        trainerId={selectedTrainer?.id || ""}
+        username={selectedTrainer?.username || ""}
+        onClose={() => setSelectedTrainer(null)}
+      />
+    </>
   );
 }
 

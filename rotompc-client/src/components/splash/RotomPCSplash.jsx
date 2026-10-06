@@ -177,7 +177,7 @@ const RotomPCSplash = ({ onFinish }) => {
             <div aria-hidden="true" className="rotom-splash__scan" />
 
             <img
-              src="/rotompc-icon.svg"
+              src="/rotompc-icon02.svg"
               alt=""
               draggable="false"
               className="rotom-splash__icon"

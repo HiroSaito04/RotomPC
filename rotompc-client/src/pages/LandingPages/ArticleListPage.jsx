@@ -1,6 +1,6 @@
-// rotompc-client/src/pages/LandingPages/ArticleListPage.jsx
+// filepath: rotompc-client/src/pages/LandingPages/ArticleListPage.jsx
 
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import Button from "@/components/Button.jsx";
 import ArticleList from "@/components/ArticleList.jsx";
@@ -82,6 +82,45 @@ const getSearchText = (article) => {
     .toLowerCase();
 };
 
+const sortArticlesLatest = (list) =>
+  [...list].sort((a, b) => getArticleTimestamp(b) - getArticleTimestamp(a));
+
+const shuffleArray = (list) => {
+  const copy = [...list];
+
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+
+    [copy[index], copy[swapIndex]] = [copy[swapIndex], copy[index]];
+  }
+
+  return copy;
+};
+
+const randomizeWithinMonthYearGroups = (list) => {
+  const grouped = {};
+
+  list.forEach((article) => {
+    const timestamp = getArticleTimestamp(article);
+
+    const date = timestamp ? new Date(timestamp) : new Date(0);
+
+    const groupKey = `${date.getFullYear()}-${String(
+      date.getMonth() + 1,
+    ).padStart(2, "0")}`;
+
+    if (!grouped[groupKey]) {
+      grouped[groupKey] = [];
+    }
+
+    grouped[groupKey].push(article);
+  });
+
+  return Object.keys(grouped)
+    .sort((a, b) => b.localeCompare(a))
+    .flatMap((key) => shuffleArray(grouped[key]));
+};
+
 /* =========================================================
    PAGE
 ========================================================= */
@@ -105,47 +144,9 @@ const ArticleListPage = () => {
 
   const [itemsToShow, setItemsToShow] = useState(8);
 
-  /* =======================================================
-     SORTING
-  ======================================================= */
-
-  const sortArticlesLatest = (list) => {
-    return [...list].sort(
-      (a, b) => getArticleTimestamp(b) - getArticleTimestamp(a),
-    );
-  };
-
-  const shuffleArray = (list) => {
-    return [...list].sort(() => Math.random() - 0.5);
-  };
-
-  const randomizeWithinMonthYearGroups = (list) => {
-    const grouped = {};
-
-    list.forEach((article) => {
-      const timestamp = getArticleTimestamp(article);
-
-      const date = timestamp ? new Date(timestamp) : new Date(0);
-
-      const groupKey = `${date.getFullYear()}-${String(
-        date.getMonth() + 1,
-      ).padStart(2, "0")}`;
-
-      if (!grouped[groupKey]) {
-        grouped[groupKey] = [];
-      }
-
-      grouped[groupKey].push(article);
-    });
-
-    return Object.keys(grouped)
-      .sort((a, b) => b.localeCompare(a))
-      .flatMap((key) => shuffleArray(grouped[key]));
-  };
-
-  /* =======================================================
-     APPLY FEED
-  ======================================================= */
+  /* =====================================================
+       APPLY FEED
+    ===================================================== */
 
   const applyArticles = (data) => {
     const dataArray = normalizeArticles(data);
@@ -163,9 +164,9 @@ const ArticleListPage = () => {
     setItemsToShow(8);
   };
 
-  /* =======================================================
-     LOAD FEED
-  ======================================================= */
+  /* =====================================================
+       LOAD FEED
+    ===================================================== */
 
   const loadMainframeFeed = async (forceRefresh = false) => {
     try {
@@ -203,11 +204,13 @@ const ArticleListPage = () => {
 
   useEffect(() => {
     loadMainframeFeed();
+    // Initial feed load only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* =======================================================
-     IMAGE
-  ======================================================= */
+  /* =====================================================
+       IMAGE
+    ===================================================== */
 
   const renderArticleImage = (article) => {
     if (!article) {
@@ -225,9 +228,9 @@ const ArticleListPage = () => {
     return FALLBACK_IMAGE;
   };
 
-  /* =======================================================
-     ARTICLE UPDATE
-  ======================================================= */
+  /* =====================================================
+       ARTICLE UPDATE
+    ===================================================== */
 
   const handleArticleUpdate = (articleId, updates) => {
     if (!articleId) {
@@ -251,9 +254,9 @@ const ArticleListPage = () => {
     setArticles((current) => patchArticles(current));
   };
 
-  /* =======================================================
-     FILTERS
-  ======================================================= */
+  /* =====================================================
+       FILTERS
+    ===================================================== */
 
   const toggleLatestFilter = () => {
     if (activeFilter === "latest") {
@@ -285,9 +288,9 @@ const ArticleListPage = () => {
     setItemsToShow(8);
   };
 
-  /* =======================================================
-     SEARCH
-  ======================================================= */
+  /* =====================================================
+       SEARCH
+    ===================================================== */
 
   useEffect(() => {
     setItemsToShow(8);
@@ -307,116 +310,143 @@ const ArticleListPage = () => {
 
   const remainingArticles = Math.max(searchedArticles.length - itemsToShow, 0);
 
-  /* =======================================================
-     UI
-  ======================================================= */
+  /* =====================================================
+       UI
+    ===================================================== */
 
   return (
     <div
       className="
-        min-h-screen
-        w-full
-        overflow-x-hidden
-        bg-[#eef1f6]
-        pb-14
-        font-sans
-        text-zinc-950
-        selection:bg-[#3b4cca]
-        selection:text-white
-      "
+          min-h-screen
+          w-full
+          overflow-x-hidden
+
+          bg-[#eef1f6]
+
+          pb-14
+
+          font-sans
+
+          text-zinc-950
+
+          selection:bg-[#3b4cca]
+          selection:text-white
+        "
     >
       {/* =================================================
-          HERO
-      ================================================== */}
+            HERO
+        ================================================== */}
 
       <section
         className="
-          relative
-          overflow-hidden
-          border-b-[6px]
-          border-zinc-950
-          bg-[#3b4cca]
-          text-white
-        "
+            relative
+
+            overflow-hidden
+
+            border-b-[6px]
+            border-zinc-950
+
+            bg-[#3b4cca]
+
+            text-white
+          "
       >
         <div
           aria-hidden="true"
           className="
-            pointer-events-none
-            absolute
-            inset-0
-            opacity-[0.08]
-            bg-[linear-gradient(to_right,#fff_1px,transparent_1px),linear-gradient(to_bottom,#fff_1px,transparent_1px)]
-            bg-[size:22px_22px]
-          "
+              pointer-events-none
+
+              absolute
+              inset-0
+
+              opacity-[0.08]
+
+              bg-[linear-gradient(to_right,#fff_1px,transparent_1px),linear-gradient(to_bottom,#fff_1px,transparent_1px)]
+              bg-[size:22px_22px]
+            "
         />
 
         <div
           aria-hidden="true"
           className="
-            pointer-events-none
-            absolute
-            -right-24
-            -top-28
-            h-[340px]
-            w-[340px]
-            rounded-full
-            border-[46px]
-            border-white/10
-          "
+              pointer-events-none
+
+              absolute
+              -right-24
+              -top-28
+
+              h-[340px]
+              w-[340px]
+
+              rounded-full
+
+              border-[46px]
+              border-white/10
+            "
         />
 
         <div
           className="
-            relative
-            z-10
-            mx-auto
-            w-full
-            max-w-7xl
-            px-4
-            py-8
-            sm:px-6
-            sm:py-10
-            lg:px-8
-          "
+              relative
+              z-10
+
+              mx-auto
+
+              w-full
+              max-w-7xl
+
+              px-4
+              py-8
+
+              sm:px-6
+              sm:py-10
+
+              lg:px-8
+            "
         >
           <div
             className="
-              max-w-3xl
-            "
+                max-w-3xl
+              "
           >
             <p
               className="
-                text-[9px]
-                font-black
-                uppercase
-                tracking-[0.18em]
-                text-yellow-300
-              "
+                  text-[9px]
+                  font-black
+                  uppercase
+                  tracking-[0.18em]
+
+                  text-yellow-300
+                "
             >
               Global Trainer Network
             </p>
 
             <h1
               className="
-                mt-3
-                text-[2.7rem]
-                font-black
-                uppercase
-                italic
-                leading-[0.86]
-                tracking-[-0.05em]
-                text-white
-                drop-shadow-[5px_5px_0_rgba(0,0,0,.22)]
-                sm:text-6xl
-                lg:text-7xl
-              "
+                  mt-3
+
+                  text-[2.7rem]
+                  font-black
+                  uppercase
+                  italic
+                  leading-[0.86]
+                  tracking-[-0.05em]
+
+                  text-white
+
+                  drop-shadow-[5px_5px_0_rgba(0,0,0,.22)]
+
+                  sm:text-6xl
+
+                  lg:text-7xl
+                "
             >
               Poké
               <span
                 className="
-                  text-yellow-300
-                "
+                    text-yellow-300
+                  "
               >
                 Social
               </span>
@@ -424,18 +454,24 @@ const ArticleListPage = () => {
 
             <p
               className="
-                mt-5
-                max-w-xl
-                border-l-4
-                border-yellow-300
-                pl-4
-                text-sm
-                font-semibold
-                leading-6
-                text-blue-50/90
-                sm:text-[15px]
-                sm:leading-7
-              "
+                  mt-5
+
+                  max-w-xl
+
+                  border-l-4
+                  border-yellow-300
+
+                  pl-4
+
+                  text-sm
+                  font-semibold
+                  leading-6
+
+                  text-blue-50/90
+
+                  sm:text-[15px]
+                  sm:leading-7
+                "
             >
               Trainer reports, discoveries, sightings, stories, and field
               updates from the RotomPC community.
@@ -443,11 +479,12 @@ const ArticleListPage = () => {
 
             <div
               className="
-                mt-6
-                flex
-                flex-wrap
-                gap-3
-              "
+                  mt-6
+
+                  flex
+                  flex-wrap
+                  gap-3
+                "
             >
               <Button
                 type="button"
@@ -455,12 +492,16 @@ const ArticleListPage = () => {
                 variant="secondary"
                 size="md"
                 className="
-                  !border-zinc-950
-                  !bg-yellow-300
-                  !font-black
-                  !text-zinc-950
-                  hover:!bg-yellow-200
-                "
+                    !border-zinc-950
+
+                    !bg-yellow-300
+
+                    !font-black
+
+                    !text-zinc-950
+
+                    hover:!bg-yellow-200
+                  "
               >
                 + Post Report
               </Button>
@@ -470,83 +511,98 @@ const ArticleListPage = () => {
       </section>
 
       {/* =================================================
-          FEED
-      ================================================== */}
+            FEED
+        ================================================== */}
 
       <main
         className="
-          mx-auto
-          w-full
-          max-w-7xl
-          px-3
-          py-6
-          sm:px-6
-          sm:py-8
-          lg:px-8
-        "
+            mx-auto
+
+            w-full
+            max-w-7xl
+
+            px-3
+            py-6
+
+            sm:px-6
+            sm:py-8
+
+            lg:px-8
+          "
       >
         <section
           className="
-            overflow-hidden
-            rounded-[1.8rem]
-            border-[4px]
-            border-zinc-950
-            bg-white
-            shadow-[7px_7px_0_#18181b]
-          "
+              overflow-hidden
+
+              rounded-[1.8rem]
+
+              border-[4px]
+              border-zinc-950
+
+              bg-white
+
+              shadow-[7px_7px_0_#18181b]
+            "
         >
-          {/* ===============================================
-              HEADER
-          ================================================ */}
+          {/* HEADER */}
 
           <div
             className="
-              border-b-[3px]
-              border-zinc-950
-              bg-white
-              p-4
-              sm:p-5
-            "
+                border-b-[3px]
+                border-zinc-950
+
+                bg-white
+
+                p-4
+
+                sm:p-5
+              "
           >
             <div
               className="
-                flex
-                flex-col
-                gap-5
-              "
+                  flex
+                  flex-col
+                  gap-5
+                "
             >
               <div
                 className="
-                  flex
-                  flex-col
-                  gap-4
-                  lg:flex-row
-                  lg:items-center
-                  lg:justify-between
-                "
+                    flex
+                    flex-col
+                    gap-4
+
+                    lg:flex-row
+                    lg:items-center
+                    lg:justify-between
+                  "
               >
                 <div
                   className="
-                    flex
-                    items-center
-                    gap-3
-                  "
+                      flex
+                      items-center
+                      gap-3
+                    "
                 >
                   <div
                     className="
-                      flex
-                      h-11
-                      w-11
-                      shrink-0
-                      items-center
-                      justify-center
-                      rounded-xl
-                      border-[3px]
-                      border-zinc-950
-                      bg-yellow-300
-                      text-xl
-                      shadow-[3px_3px_0_#18181b]
-                    "
+                        flex
+                        h-11
+                        w-11
+                        shrink-0
+                        items-center
+                        justify-center
+
+                        rounded-xl
+
+                        border-[3px]
+                        border-zinc-950
+
+                        bg-yellow-300
+
+                        text-xl
+
+                        shadow-[3px_3px_0_#18181b]
+                      "
                   >
                     📡
                   </div>
@@ -554,26 +610,29 @@ const ArticleListPage = () => {
                   <div>
                     <p
                       className="
-                        text-[8px]
-                        font-black
-                        uppercase
-                        tracking-[0.14em]
-                        text-[#3b4cca]
-                      "
+                          text-[8px]
+                          font-black
+                          uppercase
+                          tracking-[0.14em]
+
+                          text-[#3b4cca]
+                        "
                     >
                       PokéSocial
                     </p>
 
                     <h2
                       className="
-                        text-xl
-                        font-black
-                        uppercase
-                        italic
-                        tracking-[-0.03em]
-                        text-zinc-950
-                        sm:text-2xl
-                      "
+                          text-xl
+                          font-black
+                          uppercase
+                          italic
+                          tracking-[-0.03em]
+
+                          text-zinc-950
+
+                          sm:text-2xl
+                        "
                     >
                       Trainer Reports
                     </h2>
@@ -582,11 +641,12 @@ const ArticleListPage = () => {
 
                 <div
                   className="
-                    grid
-                    grid-cols-3
-                    gap-2
-                    lg:flex
-                  "
+                      grid
+                      grid-cols-3
+                      gap-2
+
+                      lg:flex
+                    "
                 >
                   <Button
                     type="button"
@@ -596,12 +656,13 @@ const ArticleListPage = () => {
                     }
                     size="sm"
                     className="
-                      !min-w-0
-                      !px-2
-                      !text-[8px]
-                      sm:!px-4
-                      sm:!text-[10px]
-                    "
+                        !min-w-0
+                        !px-2
+                        !text-[8px]
+
+                        sm:!px-4
+                        sm:!text-[10px]
+                      "
                   >
                     {activeFilter === "latest" ? "✓ Latest" : "Latest"}
                   </Button>
@@ -614,12 +675,13 @@ const ArticleListPage = () => {
                     }
                     size="sm"
                     className="
-                      !min-w-0
-                      !px-2
-                      !text-[8px]
-                      sm:!px-4
-                      sm:!text-[10px]
-                    "
+                        !min-w-0
+                        !px-2
+                        !text-[8px]
+
+                        sm:!px-4
+                        sm:!text-[10px]
+                      "
                   >
                     {activeFilter === "top-rated" ? "✓ Top" : "Top Rated"}
                   </Button>
@@ -631,39 +693,44 @@ const ArticleListPage = () => {
                     size="sm"
                     disabled={isRefreshing}
                     className="
-                      !min-w-0
-                      !px-2
-                      !text-[8px]
-                      disabled:opacity-50
-                      sm:!px-4
-                      sm:!text-[10px]
-                    "
+                        !min-w-0
+                        !px-2
+                        !text-[8px]
+
+                        disabled:opacity-50
+
+                        sm:!px-4
+                        sm:!text-[10px]
+                      "
                   >
                     {isRefreshing ? "..." : "↻ Refresh"}
                   </Button>
                 </div>
               </div>
 
-              {/* =========================================
-                  SEARCH
-              ========================================== */}
+              {/* SEARCH */}
 
               <div
                 className="
-                  relative
-                  w-full
-                "
+                    relative
+
+                    w-full
+                  "
               >
                 <div
                   className="
-                    pointer-events-none
-                    absolute
-                    left-4
-                    top-1/2
-                    -translate-y-1/2
-                    text-lg
-                    text-zinc-400
-                  "
+                      pointer-events-none
+
+                      absolute
+                      left-4
+                      top-1/2
+
+                      -translate-y-1/2
+
+                      text-lg
+
+                      text-zinc-400
+                    "
                 >
                   ⌕
                 </div>
@@ -675,24 +742,34 @@ const ArticleListPage = () => {
                   placeholder="Search reports, trainers, titles..."
                   aria-label="Search PokéSocial reports"
                   className="
-                    h-12
-                    w-full
-                    rounded-xl
-                    border-[3px]
-                    border-zinc-950
-                    bg-zinc-50
-                    pl-11
-                    pr-24
-                    text-sm
-                    font-bold
-                    text-zinc-950
-                    outline-none
-                    transition
-                    placeholder:text-zinc-400
-                    focus:bg-white
-                    focus:ring-4
-                    focus:ring-[#3b4cca]/15
-                  "
+                      h-12
+                      w-full
+
+                      rounded-xl
+
+                      border-[3px]
+                      border-zinc-950
+
+                      bg-zinc-50
+
+                      pl-11
+                      pr-24
+
+                      text-sm
+                      font-bold
+
+                      text-zinc-950
+
+                      outline-none
+
+                      transition
+
+                      placeholder:text-zinc-400
+
+                      focus:bg-white
+                      focus:ring-4
+                      focus:ring-[#3b4cca]/15
+                    "
                 />
 
                 {searchQuery && (
@@ -700,24 +777,33 @@ const ArticleListPage = () => {
                     type="button"
                     onClick={() => setSearchQuery("")}
                     className="
-                      absolute
-                      right-2
-                      top-1/2
-                      -translate-y-1/2
-                      rounded-lg
-                      border-2
-                      border-zinc-300
-                      bg-white
-                      px-3
-                      py-1.5
-                      text-[9px]
-                      font-black
-                      uppercase
-                      text-zinc-600
-                      transition
-                      hover:border-zinc-950
-                      hover:text-zinc-950
-                    "
+                        absolute
+                        right-2
+                        top-1/2
+
+                        -translate-y-1/2
+
+                        rounded-lg
+
+                        border-2
+                        border-zinc-300
+
+                        bg-white
+
+                        px-3
+                        py-1.5
+
+                        text-[9px]
+                        font-black
+                        uppercase
+
+                        text-zinc-600
+
+                        transition
+
+                        hover:border-zinc-950
+                        hover:text-zinc-950
+                      "
                   >
                     Clear
                   </button>
@@ -726,89 +812,100 @@ const ArticleListPage = () => {
             </div>
           </div>
 
-          {/* ===============================================
-              ERROR
-          ================================================ */}
+          {/* ERROR */}
 
           {error && (
             <div
               className="
-                border-b-[3px]
-                border-zinc-950
-                bg-red-50
-                p-4
-              "
+                  border-b-[3px]
+                  border-zinc-950
+
+                  bg-red-50
+
+                  p-4
+                "
             >
               <div
                 className="
-                  rounded-xl
-                  border-2
-                  border-red-300
-                  bg-white
-                  p-3
-                  text-sm
-                  font-bold
-                  text-red-700
-                "
+                    rounded-xl
+
+                    border-2
+                    border-red-300
+
+                    bg-white
+
+                    p-3
+
+                    text-sm
+                    font-bold
+
+                    text-red-700
+                  "
               >
                 {error}
               </div>
             </div>
           )}
 
-          {/* ===============================================
-              CONTENT
-          ================================================ */}
+          {/* CONTENT */}
 
           <div
             className="
-              bg-[#f8f9fb]
-              p-3
-              sm:p-5
-              lg:p-6
-            "
+                bg-[#f8f9fb]
+
+                p-3
+
+                sm:p-5
+
+                lg:p-6
+              "
           >
             {loading && visibleSubset.length === 0 ? (
               <div
                 className="
-                  flex
-                  min-h-[360px]
-                  items-center
-                  justify-center
-                  rounded-2xl
-                  border-2
-                  border-dashed
-                  border-zinc-300
-                  bg-white
-                "
-              >
-                <div
-                  className="
-                    text-center
+                    flex
+                    min-h-[360px]
+                    items-center
+                    justify-center
+
+                    rounded-2xl
+
+                    border-2
+                    border-dashed
+                    border-zinc-300
+
+                    bg-white
                   "
-                >
+              >
+                <div className="text-center">
                   <div
                     className="
-                      mx-auto
-                      h-10
-                      w-10
-                      animate-spin
-                      rounded-full
-                      border-4
-                      border-zinc-200
-                      border-t-[#3b4cca]
-                    "
+                        mx-auto
+
+                        h-10
+                        w-10
+
+                        animate-spin
+
+                        rounded-full
+
+                        border-4
+                        border-zinc-200
+                        border-t-[#3b4cca]
+                      "
                   />
 
                   <p
                     className="
-                      mt-4
-                      text-[9px]
-                      font-black
-                      uppercase
-                      tracking-[0.15em]
-                      text-zinc-400
-                    "
+                        mt-4
+
+                        text-[9px]
+                        font-black
+                        uppercase
+                        tracking-[0.15em]
+
+                        text-zinc-400
+                      "
                   >
                     Loading Reports
                   </p>
@@ -817,10 +914,10 @@ const ArticleListPage = () => {
             ) : visibleSubset.length > 0 ? (
               <div
                 className="
-                  flex
-                  flex-col
-                  gap-7
-                "
+                    flex
+                    flex-col
+                    gap-7
+                  "
               >
                 <ArticleList
                   articles={visibleSubset}
@@ -831,12 +928,14 @@ const ArticleListPage = () => {
                 {remainingArticles > 0 && (
                   <div
                     className="
-                      flex
-                      justify-center
-                      border-t-2
-                      border-zinc-200
-                      pt-6
-                    "
+                        flex
+                        justify-center
+
+                        border-t-2
+                        border-zinc-200
+
+                        pt-6
+                      "
                   >
                     <Button
                       type="button"
@@ -844,14 +943,19 @@ const ArticleListPage = () => {
                       variant="secondary"
                       size="md"
                       className="
-                        !border-[3px]
-                        !border-zinc-950
-                        !bg-yellow-300
-                        !font-black
-                        !text-zinc-950
-                        !shadow-[4px_4px_0_#18181b]
-                        hover:!bg-yellow-200
-                      "
+                          !border-[3px]
+                          !border-zinc-950
+
+                          !bg-yellow-300
+
+                          !font-black
+
+                          !text-zinc-950
+
+                          !shadow-[4px_4px_0_#18181b]
+
+                          hover:!bg-yellow-200
+                        "
                     >
                       Load More
                     </Button>
@@ -861,60 +965,75 @@ const ArticleListPage = () => {
             ) : (
               <div
                 className="
-                  flex
-                  min-h-[360px]
-                  flex-col
-                  items-center
-                  justify-center
-                  rounded-2xl
-                  border-[3px]
-                  border-dashed
-                  border-zinc-300
-                  bg-white
-                  px-6
-                  text-center
-                "
+                    flex
+                    min-h-[360px]
+                    flex-col
+                    items-center
+                    justify-center
+
+                    rounded-2xl
+
+                    border-[3px]
+                    border-dashed
+                    border-zinc-300
+
+                    bg-white
+
+                    px-6
+
+                    text-center
+                  "
               >
                 <div
                   className="
-                    flex
-                    h-16
-                    w-16
-                    items-center
-                    justify-center
-                    rounded-2xl
-                    border-[3px]
-                    border-zinc-950
-                    bg-yellow-300
-                    text-2xl
-                    shadow-[4px_4px_0_#18181b]
-                  "
+                      flex
+                      h-16
+                      w-16
+                      items-center
+                      justify-center
+
+                      rounded-2xl
+
+                      border-[3px]
+                      border-zinc-950
+
+                      bg-yellow-300
+
+                      text-2xl
+
+                      shadow-[4px_4px_0_#18181b]
+                    "
                 >
                   {searchQuery ? "⌕" : "📡"}
                 </div>
 
                 <h3
                   className="
-                    mt-5
-                    text-xl
-                    font-black
-                    uppercase
-                    italic
-                    text-zinc-950
-                  "
+                      mt-5
+
+                      text-xl
+                      font-black
+                      uppercase
+                      italic
+
+                      text-zinc-950
+                    "
                 >
                   {searchQuery ? "No Matching Reports" : "No Reports Found"}
                 </h3>
 
                 <p
                   className="
-                    mt-2
-                    max-w-sm
-                    text-sm
-                    font-medium
-                    leading-6
-                    text-zinc-500
-                  "
+                      mt-2
+
+                      max-w-sm
+
+                      text-sm
+                      font-medium
+                      leading-6
+
+                      text-zinc-500
+                    "
                 >
                   {searchQuery
                     ? `Nothing matches "${searchQuery.trim()}".`
@@ -923,12 +1042,13 @@ const ArticleListPage = () => {
 
                 <div
                   className="
-                    mt-5
-                    flex
-                    flex-wrap
-                    justify-center
-                    gap-2
-                  "
+                      mt-5
+
+                      flex
+                      flex-wrap
+                      justify-center
+                      gap-2
+                    "
                 >
                   {searchQuery ? (
                     <Button
@@ -966,6 +1086,10 @@ const ArticleListPage = () => {
           </div>
         </section>
       </main>
+
+      {/* =================================================
+            POST REPORT
+        ================================================== */}
 
       <ArticlePost
         isOpen={isModalOpen}

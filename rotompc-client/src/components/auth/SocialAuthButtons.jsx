@@ -1,4 +1,4 @@
-// rotompc-client/src/components/auth/SocialAuthButtons.jsx
+// filepath: rotompc-client/src/components/auth/SocialAuthButtons.jsx
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -61,6 +61,8 @@ const loadGoogleSdk = () => {
           if (window.google?.accounts?.id) {
             resolve(window.google);
           } else {
+            googleSdkPromise = null;
+
             reject(new Error("Google Identity Services could not be loaded."));
           }
         },
@@ -72,6 +74,8 @@ const loadGoogleSdk = () => {
       existing.addEventListener(
         "error",
         () => {
+          googleSdkPromise = null;
+
           reject(new Error("Unable to load Google authentication."));
         },
         {
@@ -89,12 +93,15 @@ const loadGoogleSdk = () => {
     script.src = "https://accounts.google.com/gsi/client";
 
     script.async = true;
+
     script.defer = true;
 
     script.onload = () => {
       if (window.google?.accounts?.id) {
         resolve(window.google);
       } else {
+        googleSdkPromise = null;
+
         reject(new Error("Google Identity Services could not be initialized."));
       }
     };
@@ -139,11 +146,8 @@ const loadFacebookSdk = () => {
       try {
         window.FB.init({
           appId: FACEBOOK_APP_ID,
-
           cookie: true,
-
           xfbml: false,
-
           version: FACEBOOK_GRAPH_VERSION,
         });
 
@@ -160,11 +164,6 @@ const loadFacebookSdk = () => {
     const existing = document.getElementById("facebook-jssdk");
 
     if (existing) {
-      /*
-       * Script may already be
-       * loading. fbAsyncInit above
-       * will run when ready.
-       */
       return;
     }
 
@@ -175,6 +174,7 @@ const loadFacebookSdk = () => {
     script.src = "https://connect.facebook.net/en_US/sdk.js";
 
     script.async = true;
+
     script.defer = true;
 
     script.crossOrigin = "anonymous";
@@ -189,6 +189,36 @@ const loadFacebookSdk = () => {
   });
 
   return facebookSdkPromise;
+};
+
+/* =========================================================
+   GOOGLE ICON
+========================================================= */
+
+const GoogleIcon = ({ className = "h-6 w-6" }) => {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <path
+        fill="#4285F4"
+        d="M21.6 12.227c0-.709-.064-1.391-.182-2.045H12v3.868h5.382a4.6 4.6 0 0 1-1.995 3.018v2.509h3.232c1.891-1.741 2.981-4.309 2.981-7.35Z"
+      />
+
+      <path
+        fill="#34A853"
+        d="M12 22c2.7 0 4.968-.895 6.623-2.423l-3.232-2.509c-.895.6-2.041.955-3.391.955-2.605 0-4.809-1.759-5.595-4.123H3.064v2.591A9.998 9.998 0 0 0 12 22Z"
+      />
+
+      <path
+        fill="#FBBC05"
+        d="M6.405 13.9A6.015 6.015 0 0 1 6.091 12c0-.659.114-1.3.314-1.9V7.509H3.064A9.995 9.995 0 0 0 2 12c0 1.614.386 3.141 1.064 4.491L6.405 13.9Z"
+      />
+
+      <path
+        fill="#EA4335"
+        d="M12 5.977c1.468 0 2.786.505 3.823 1.496L18.696 4.6C16.964 2.986 14.695 2 12 2a9.998 9.998 0 0 0-8.936 5.509L6.405 10.1C7.191 7.736 9.395 5.977 12 5.977Z"
+      />
+    </svg>
+  );
 };
 
 /* =========================================================
@@ -246,11 +276,9 @@ const ProviderTooltip = ({ provider }) => {
         pointer-events-none
 
         absolute
-
         bottom-[calc(100%+8px)]
         left-1/2
-
-        z-30
+        z-40
 
         -translate-x-1/2
         translate-y-1
@@ -300,31 +328,49 @@ const LoadingSpinner = () => {
     <span
       aria-hidden="true"
       className="
-          h-5
-          w-5
+        h-5
+        w-5
 
-          animate-spin
+        animate-spin
 
-          rounded-full
+        rounded-full
 
-          border-2
-          border-current
-          border-r-transparent
-        "
+        border-2
+        border-current
+        border-r-transparent
+      "
     />
   );
 };
 
 /* =========================================================
-   GOOGLE BUTTON WRAPPER
+   GOOGLE BUTTON
+
+   The visible Google icon is OUR visual layer.
+
+   Google's official button is rendered on top at almost
+   zero opacity so the real Google authentication target
+   still receives the click.
+
+   This prevents the Google logo from disappearing when
+   Google's rendered icon/button has styling/render issues.
 ========================================================= */
 
 const GoogleAuthButton = ({
   googleButtonRef,
+
   loading,
+
   disabled,
+
   configured,
+
+  ready,
+
+  failed,
 }) => {
+  const unavailable = !configured || failed;
+
   return (
     <div
       className={`
@@ -342,17 +388,70 @@ const GoogleAuthButton = ({
 
         rounded-xl
 
-        ${disabled || !configured ? "opacity-50" : ""}
+        ${disabled || unavailable ? "opacity-50" : ""}
       `}
       title={
-        configured
-          ? "Continue with Google"
-          : "Google authentication is not configured"
+        !configured
+          ? "Google authentication is not configured"
+          : failed
+            ? "Google authentication is unavailable"
+            : ready
+              ? "Continue with Google"
+              : "Loading Google authentication"
       }
     >
+      {/* ===============================================
+          PERMANENT VISIBLE GOOGLE BUTTON
+      ================================================ */}
+
+      <div
+        aria-hidden="true"
+        className="
+          pointer-events-none
+
+          absolute
+          inset-0
+          z-10
+
+          flex
+          items-center
+          justify-center
+
+          overflow-hidden
+
+          rounded-xl
+
+          border-2
+          border-zinc-300
+
+          bg-white
+
+          shadow-[2px_2px_0_rgba(24,24,27,.18)]
+
+          transition-all
+          duration-150
+
+          group-hover:border-zinc-950
+          group-hover:bg-zinc-50
+          group-hover:shadow-[3px_3px_0_#18181b]
+        "
+      >
+        <GoogleIcon className="block h-6 w-6 shrink-0" />
+      </div>
+
+      {/* ===============================================
+          GOOGLE'S REAL CLICK TARGET
+
+          It stays over our visible icon once ready.
+      ================================================ */}
+
       <div
         ref={googleButtonRef}
-        className="
+        className={`
+          absolute
+          inset-0
+          z-20
+
           flex
           h-12
           w-12
@@ -363,16 +462,56 @@ const GoogleAuthButton = ({
           overflow-hidden
 
           rounded-xl
-        "
+
+          ${
+            ready && !disabled && !unavailable
+              ? "cursor-pointer opacity-[0.01]"
+              : "pointer-events-none opacity-0"
+          }
+        `}
       />
+
+      {/* ===============================================
+          SDK LOADING INDICATOR
+      ================================================ */}
+
+      {configured && !ready && !failed && !loading && (
+        <span
+          className="
+              pointer-events-none
+
+              absolute
+              bottom-1
+              right-1
+              z-30
+
+              h-2
+              w-2
+
+              animate-pulse
+
+              rounded-full
+
+              border
+              border-white
+
+              bg-[#4285F4]
+
+              shadow-sm
+            "
+        />
+      )}
+
+      {/* ===============================================
+          AUTH REQUEST LOADING
+      ================================================ */}
 
       {loading && (
         <div
           className="
             absolute
             inset-0
-
-            z-20
+            z-30
 
             flex
             items-center
@@ -385,21 +524,24 @@ const GoogleAuthButton = ({
 
             bg-white
 
-            text-zinc-700
+            text-[#4285F4]
           "
         >
           <LoadingSpinner />
         </div>
       )}
 
-      {disabled && !loading && (
+      {/* ===============================================
+          UNAVAILABLE BLOCKER
+      ================================================ */}
+
+      {(disabled || unavailable) && !loading && (
         <div
           aria-hidden="true"
           className="
               absolute
               inset-0
-
-              z-10
+              z-30
 
               cursor-not-allowed
 
@@ -410,7 +552,17 @@ const GoogleAuthButton = ({
         />
       )}
 
-      <ProviderTooltip provider="Google" />
+      <ProviderTooltip
+        provider={
+          !configured
+            ? "Google not configured"
+            : failed
+              ? "Google unavailable"
+              : ready
+                ? "Google"
+                : "Loading Google"
+        }
+      />
     </div>
   );
 };
@@ -419,18 +571,20 @@ const GoogleAuthButton = ({
    FACEBOOK BUTTON
 ========================================================= */
 
-const FacebookAuthButton = ({ onClick, loading, disabled, configured }) => {
+const FacebookAuthButton = ({
+  onClick,
+
+  loading,
+
+  disabled,
+}) => {
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled || !configured}
+      disabled={disabled}
       aria-label="Continue with Facebook"
-      title={
-        configured
-          ? "Continue with Facebook"
-          : "Facebook authentication is not configured"
-      }
+      title="Continue with Facebook"
       className="
         group
 
@@ -497,6 +651,10 @@ const SocialAuthButtons = ({
 
   const [activeProvider, setActiveProvider] = useState(null);
 
+  const [googleReady, setGoogleReady] = useState(false);
+
+  const [googleFailed, setGoogleFailed] = useState(false);
+
   const [facebookReady, setFacebookReady] = useState(false);
 
   /* =======================================================
@@ -541,6 +699,10 @@ const SocialAuthButtons = ({
   ======================================================= */
 
   useEffect(() => {
+    setGoogleReady(false);
+
+    setGoogleFailed(false);
+
     if (!GOOGLE_CLIENT_ID || !googleButtonRef.current) {
       return undefined;
     }
@@ -580,9 +742,21 @@ const SocialAuthButtons = ({
 
           text: mode === "signup" ? "signup_with" : "signin_with",
         });
+
+        if (!cancelled) {
+          setGoogleReady(true);
+
+          setGoogleFailed(false);
+        }
       })
       .catch((error) => {
         console.error("Google SDK error:", error);
+
+        if (!cancelled) {
+          setGoogleReady(false);
+
+          setGoogleFailed(true);
+        }
       });
 
     return () => {
@@ -596,15 +770,13 @@ const SocialAuthButtons = ({
 
   /* =======================================================
      FACEBOOK PRELOAD
-
-     Preload before click so FB.login()
-     is invoked directly from the user's
-     click event.
   ======================================================= */
 
   useEffect(() => {
     if (!FACEBOOK_APP_ID || !FACEBOOK_GRAPH_VERSION) {
-      return;
+      setFacebookReady(false);
+
+      return undefined;
     }
 
     let cancelled = false;
@@ -639,21 +811,12 @@ const SocialAuthButtons = ({
 
     onError?.("");
 
-    if (!FACEBOOK_APP_ID) {
-      onError?.("Facebook authentication is not configured.");
-
-      return;
-    }
-
-    if (!FACEBOOK_GRAPH_VERSION) {
-      onError?.("Facebook Graph API version is not configured.");
-
-      return;
-    }
-
-    if (!facebookReady || !window.FB) {
-      onError?.("Facebook authentication is still loading. Please try again.");
-
+    if (
+      !FACEBOOK_APP_ID ||
+      !FACEBOOK_GRAPH_VERSION ||
+      !facebookReady ||
+      !window.FB
+    ) {
       return;
     }
 
@@ -674,7 +837,6 @@ const SocialAuthButtons = ({
               new Error("Facebook sign-in was cancelled or not authorized."),
             );
           },
-
           {
             scope: "public_profile,email",
 
@@ -705,7 +867,15 @@ const SocialAuthButtons = ({
      UI
   ======================================================= */
 
+  const googleConfigured = Boolean(GOOGLE_CLIENT_ID);
+
   const facebookConfigured = Boolean(FACEBOOK_APP_ID && FACEBOOK_GRAPH_VERSION);
+
+  /*
+   * Facebook stays completely out of the DOM
+   * until its SDK is actually available.
+   */
+  const showFacebook = facebookConfigured && facebookReady;
 
   return (
     <div
@@ -720,15 +890,18 @@ const SocialAuthButtons = ({
         googleButtonRef={googleButtonRef}
         loading={activeProvider === "google"}
         disabled={Boolean(activeProvider) && activeProvider !== "google"}
-        configured={Boolean(GOOGLE_CLIENT_ID)}
+        configured={googleConfigured}
+        ready={googleReady}
+        failed={googleFailed}
       />
 
-      <FacebookAuthButton
-        onClick={handleFacebookAuth}
-        loading={activeProvider === "facebook"}
-        disabled={Boolean(activeProvider) || !facebookReady}
-        configured={facebookConfigured}
-      />
+      {showFacebook && (
+        <FacebookAuthButton
+          onClick={handleFacebookAuth}
+          loading={activeProvider === "facebook"}
+          disabled={Boolean(activeProvider)}
+        />
+      )}
     </div>
   );
 };

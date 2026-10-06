@@ -148,8 +148,7 @@ const PokemonPage = () => {
 
           className="inline-flex items-center gap-1 md:gap-2 border-4 border-zinc-950 bg-white text-zinc-950 px-3 py-2 rounded-xl text-[10px] md:text-xs font-black uppercase tracking-wider shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all active:translate-x-0.5 active:translate-y-0.5 active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
         >
-          <span>⬅️</span> <span className="hidden sm:inline">RotomDex</span>{" "}
-          Index
+          <span className="hidden sm:inline">RotomDex</span> ↩ Dex
         </Link>
 
         <div className="flex gap-2 md:gap-3">

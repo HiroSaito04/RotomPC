@@ -11,6 +11,7 @@ const userRoutes = require("./routes/userRoutes");
 const articleRoutes = require("./routes/articleRoutes");
 const buddyRoutes = require("./routes/buddyRoutes");
 const rotomAIRoutes = require("./routes/rotomAIRoutes");
+const trainerAvatarRoutes = require("./routes/trainerAvatarRoutes");
 
 const app = express();
 
@@ -136,6 +137,8 @@ app.use("/api/articles", articleRoutes);
 app.use("/api/buddy", buddyRoutes);
 
 app.use("/api/rotom-ai", rotomAIRoutes);
+
+app.use("/api/trainer-avatars", trainerAvatarRoutes);
 
 /* =========================================================
    404

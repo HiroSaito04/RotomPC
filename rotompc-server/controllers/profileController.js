@@ -19,7 +19,7 @@ const validateCompletedProfile = ({
 }) => {
   const errors = [];
 
-  const nameRegex = /^[A-Za-z\s\-']+$/;
+  const nameRegex = /^[A-Za-z\s'-]+$/;
 
   const normalizedFirstName = String(firstName || "").trim();
 
@@ -97,6 +97,7 @@ const serializeMyProfile = (user) => ({
 
   favoritePokemon: user.favoritePokemon || {
     id: null,
+
     name: "",
   },
 
@@ -161,8 +162,8 @@ const updateTrainerProfile = async (req, res) => {
     const update = {};
 
     /* -----------------------------------------------------
-       BIO
-    ----------------------------------------------------- */
+         BIO
+      ----------------------------------------------------- */
 
     if (bio !== undefined) {
       const normalizedBio = String(bio).trim();
@@ -177,8 +178,8 @@ const updateTrainerProfile = async (req, res) => {
     }
 
     /* -----------------------------------------------------
-       REGION
-    ----------------------------------------------------- */
+         REGION
+      ----------------------------------------------------- */
 
     if (region !== undefined) {
       const normalizedRegion = String(region).trim();
@@ -193,8 +194,8 @@ const updateTrainerProfile = async (req, res) => {
     }
 
     /* -----------------------------------------------------
-       FAVORITE POKEMON
-    ----------------------------------------------------- */
+         FAVORITE POKEMON
+      ----------------------------------------------------- */
 
     if (favoritePokemon !== undefined) {
       const shouldClear =
@@ -206,6 +207,7 @@ const updateTrainerProfile = async (req, res) => {
       if (shouldClear) {
         update.favoritePokemon = {
           id: null,
+
           name: "",
         };
       } else {
@@ -229,14 +231,15 @@ const updateTrainerProfile = async (req, res) => {
 
         update.favoritePokemon = {
           id: pokemonId,
+
           name: pokemonName,
         };
       }
     }
 
     /* -----------------------------------------------------
-       FAVORITE TYPE
-    ----------------------------------------------------- */
+         FAVORITE TYPE
+      ----------------------------------------------------- */
 
     if (favoriteType !== undefined) {
       const normalizedType = String(favoriteType || "")
@@ -253,8 +256,8 @@ const updateTrainerProfile = async (req, res) => {
     }
 
     /* -----------------------------------------------------
-       VISIBILITY
-    ----------------------------------------------------- */
+         VISIBILITY
+      ----------------------------------------------------- */
 
     if (profileVisibility !== undefined) {
       const visibility = String(profileVisibility).toLowerCase().trim();
@@ -268,6 +271,10 @@ const updateTrainerProfile = async (req, res) => {
       update.profileVisibility = visibility;
     }
 
+    /* -----------------------------------------------------
+         UPDATE
+      ----------------------------------------------------- */
+
     const user = await User.findByIdAndUpdate(
       req.user.id,
 
@@ -277,6 +284,7 @@ const updateTrainerProfile = async (req, res) => {
 
       {
         new: true,
+
         runValidators: true,
       },
     );
@@ -320,9 +328,13 @@ const completeProfile = async (req, res) => {
 
     const errors = validateCompletedProfile({
       firstName,
+
       lastName,
+
       age,
+
       gender,
+
       contactNumber,
     });
 
@@ -396,6 +408,7 @@ const getPublicProfile = async (req, res) => {
 
     const user = await User.findOne({
       username,
+
       isActive: true,
     });
 
@@ -425,9 +438,16 @@ const getPublicProfile = async (req, res) => {
   }
 };
 
+/* =========================================================
+   EXPORTS
+========================================================= */
+
 module.exports = {
   getMyProfile,
+
   updateTrainerProfile,
+
   completeProfile,
+
   getPublicProfile,
 };

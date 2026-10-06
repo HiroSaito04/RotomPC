@@ -1,0 +1,88 @@
+/* filepath: rotompc-client/public/pwa-safe-area.css */
+
+/* =========================================================
+   ROTOMPC INSTALLED APP SAFE AREAS
+
+   This stylesheet protects fixed UI from:
+   - iPhone Dynamic Island
+   - iPhone notch
+   - iOS status bar
+   - Android display cutouts
+   - standalone PWA system bars
+
+   Normal browser mode is unaffected.
+========================================================= */
+
+/* =========================================================
+   ROOT
+========================================================= */
+
+html.rotompc-standalone,
+html.rotompc-standalone body,
+html.rotompc-standalone #root {
+  min-height: 100dvh;
+}
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 767px) {
+  /* =======================================================
+     MAIN ROTOMPC NAVBAR
+
+     Current navbar structure:
+
+     .fixed.inset-x-0.top-0.z-50
+       > header
+
+     Padding is applied to the HEADER instead of the outer
+     fixed wrapper.
+
+     This is important because the navbar already measures
+     its header height with ResizeObserver. The measurement
+     will therefore automatically include the safe area.
+  ======================================================= */
+
+  html.rotompc-standalone #root .fixed.inset-x-0.top-0.z-50 > header {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* =======================================================
+     MOBILE NAVIGATION DRAWER
+
+     Prevent its red/header controls from sitting underneath
+     the phone's status bar or Dynamic Island.
+  ======================================================= */
+
+  html.rotompc-standalone #rotompc-mobile-drawer {
+    box-sizing: border-box;
+
+    padding-top: env(safe-area-inset-top, 0px);
+
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
+/* =========================================================
+   DISPLAY-MODE FALLBACK
+
+   Modern installed PWAs support display-mode.
+
+   This duplicates the critical safe-area rules in case the
+   JS standalone class has not yet been attached.
+========================================================= */
+
+@media (max-width: 767px) and (display-mode: standalone) {
+  #root .fixed.inset-x-0.top-0.z-50 > header {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  #rotompc-mobile-drawer {
+    box-sizing: border-box;
+
+    padding-top: env(safe-area-inset-top, 0px);
+
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}

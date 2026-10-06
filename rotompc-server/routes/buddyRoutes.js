@@ -1,4 +1,4 @@
-// rotompc-server/routes/buddyRoutes.js
+// filepath: rotompc-server/routes/buddyRoutes.js
 
 const express = require("express");
 
@@ -6,68 +6,50 @@ const { verifyToken } = require("../middlewares/authMiddleware");
 
 const {
   getBuddy,
-
   selectBuddy,
-
   pet,
-
   play,
-
   feed,
 } = require("../controllers/buddyController");
+
+const { getPublicBuddy } = require("../controllers/publicBuddyController");
 
 const router = express.Router();
 
 /* =========================================================
-   STATE
+   PUBLIC TRAINER BUDDY
+
+   Read-only.
+
+   The public Trainer Profile modal uses this
+   only to display the Trainer's Buddy Pokémon.
 ========================================================= */
 
-router.get(
-  "/",
+router.get("/trainer/:userId", getPublicBuddy);
 
-  verifyToken,
+/* =========================================================
+   AUTHENTICATED BUDDY STATE
+========================================================= */
 
-  getBuddy,
-);
+router.get("/", verifyToken, getBuddy);
 
 /* =========================================================
    BUDDY POKÉMON
 ========================================================= */
 
-router.patch(
-  "/pokemon",
-
-  verifyToken,
-
-  selectBuddy,
-);
+router.patch("/pokemon", verifyToken, selectBuddy);
 
 /* =========================================================
-   INTERACTIONS
+   REAL INTERACTIONS
+
+   These modify actual Buddy state and are
+   intentionally authenticated.
 ========================================================= */
 
-router.post(
-  "/pet",
+router.post("/pet", verifyToken, pet);
 
-  verifyToken,
+router.post("/play", verifyToken, play);
 
-  pet,
-);
-
-router.post(
-  "/play",
-
-  verifyToken,
-
-  play,
-);
-
-router.post(
-  "/feed",
-
-  verifyToken,
-
-  feed,
-);
+router.post("/feed", verifyToken, feed);
 
 module.exports = router;

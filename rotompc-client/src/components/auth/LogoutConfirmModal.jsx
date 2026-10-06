@@ -394,7 +394,7 @@ const LogoutConfirmModal = ({ open, onClose, onConfirm, loading = false }) => {
                 disabled:opacity-50
               "
             >
-              Stay Logged In
+              Cancel
             </button>
 
             <button

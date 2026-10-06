@@ -110,9 +110,9 @@ const RotomDexPage = () => {
           <div className="shrink-0">
             <Link
               to="/"
-              className="inline-flex items-center gap-2 border-4 border-zinc-950 bg-white text-zinc-950 px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-widest shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] transition-all hover:bg-zinc-50 active:translate-x-0.5 active:translate-y-0.5 active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+              className="inline-flex items-center gap-2 border-4 border-zinc-950 bg-white !text-black px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-widest shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] transition-all hover:bg-zinc-50 hover:!text-black active:translate-x-0.5 active:translate-y-0.5 active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
             >
-              HOMEPAGE
+              🏠︎ HOME
             </Link>
           </div>
         </div>

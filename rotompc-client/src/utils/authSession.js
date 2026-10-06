@@ -1,10 +1,19 @@
-// rotompc-client/src/utils/authSession.js
+// filepath: rotompc-client/src/utils/authSession.js
 
 /* =========================================================
    EVENTS
 ========================================================= */
 
 export const AUTH_UPDATE_EVENT = "local-auth-update";
+
+/* =========================================================
+   ROLE HELPERS
+========================================================= */
+
+const normalizeRole = (value) =>
+  String(value || "trainer")
+    .trim()
+    .toLowerCase();
 
 /* =========================================================
    GET STORED SESSION
@@ -47,7 +56,6 @@ export const notifyAuthUpdate = () => {
 const normalizeUserPayload = (data = {}, previous = {}) => {
   return {
     ...previous,
-
     ...data,
 
     id: data.id || data._id || previous.id || "",
@@ -60,7 +68,7 @@ const normalizeUserPayload = (data = {}, previous = {}) => {
 
     username: data.username ?? previous.username ?? "",
 
-    role: data.role ?? previous.role ?? "trainer",
+    role: normalizeRole(data.role ?? previous.role ?? "trainer"),
 
     age: data.age ?? previous.age ?? null,
 
@@ -99,9 +107,10 @@ const normalizeUserPayload = (data = {}, previous = {}) => {
 /* =========================================================
    REPLACE / MERGE STORED USER
 
-   Important:
-   Do NOT overwrite existing profile information with
-   missing properties from a smaller API response.
+   Used for profile updates after login.
+
+   Existing profile information is preserved when a smaller
+   profile API response does not contain every property.
 ========================================================= */
 
 export const updateStoredUser = (data, { dispatch = true } = {}) => {
@@ -119,7 +128,7 @@ export const updateStoredUser = (data, { dispatch = true } = {}) => {
     localStorage.setItem("id", String(next.id));
   }
 
-  localStorage.setItem("role", next.role || "trainer");
+  localStorage.setItem("role", normalizeRole(next.role));
 
   localStorage.setItem("firstName", next.firstName || "");
 
@@ -132,38 +141,86 @@ export const updateStoredUser = (data, { dispatch = true } = {}) => {
 
 /* =========================================================
    SAVE AUTH SESSION
+
+   Authentication starts a new account session.
+
+   If another account was previously stored in this browser,
+   do not allow that account's profile fields to leak into
+   the newly authenticated user.
 ========================================================= */
 
 export const saveAuthSession = (data) => {
-  if (!data?.token || !(data?.id || data?._id)) {
+  const incomingId = data?.id || data?._id || "";
+
+  if (!data?.token || !incomingId) {
     throw new Error("Invalid authentication response.");
   }
 
+  const previous = getStoredUser();
+
+  const sameUser = previous?.id && String(previous.id) === String(incomingId);
+
+  const normalizedUser = normalizeUserPayload(data, sameUser ? previous : {});
+
   localStorage.setItem("token", data.token);
 
-  updateStoredUser(data, {
-    dispatch: false,
-  });
+  localStorage.setItem("user", JSON.stringify(normalizedUser));
+
+  localStorage.setItem("id", String(normalizedUser.id));
+
+  localStorage.setItem("role", normalizeRole(normalizedUser.role));
+
+  localStorage.setItem("firstName", normalizedUser.firstName || "");
 
   notifyAuthUpdate();
 
-  return getStoredUser();
+  return normalizedUser;
 };
 
 /* =========================================================
    AUTH DESTINATION
+
+   IMPORTANT:
+   Dashboard roles are checked BEFORE trainer profile
+   completion.
+
+   Admins/editors do not need to complete the Trainer
+   profile flow before entering the dashboard.
 ========================================================= */
 
-export const getAuthDestination = (data) => {
-  if (data?.profileCompleted === false) {
-    return "/auth/complete-profile";
+export const getAuthDestination = (data = {}) => {
+  const role = normalizeRole(
+    data.role || localStorage.getItem("role") || "trainer",
+  );
+
+  /* -------------------------------------------------------
+     ADMIN / EDITOR
+  ------------------------------------------------------- */
+
+  if (role === "admin" || role === "editor") {
+    return "/dashboard";
   }
 
-  if (data?.role === "trainer" || !data?.role) {
+  /* -------------------------------------------------------
+     TRAINER
+  ------------------------------------------------------- */
+
+  if (role === "trainer") {
+    if (data.profileCompleted === false) {
+      return "/auth/complete-profile";
+    }
+
     return "/";
   }
 
-  return "/dashboard";
+  /* -------------------------------------------------------
+     OTHER ROLES
+
+     Professor and any future unsupported role should not
+     automatically receive dashboard access.
+  ------------------------------------------------------- */
+
+  return "/";
 };
 
 /* =========================================================

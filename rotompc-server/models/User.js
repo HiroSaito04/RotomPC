@@ -1,8 +1,10 @@
-// rotompc-server/models/User.js
+// filepath: rotompc-server/models/User.js
 
 const mongoose = require("mongoose");
 
 const { POKEMON_TYPES } = require("../constants/pokemon");
+
+const { USER_ROLES } = require("../constants/userRoles");
 
 const userSchema = new mongoose.Schema(
   {
@@ -103,7 +105,7 @@ const userSchema = new mongoose.Schema(
     role: {
       type: String,
 
-      enum: ["admin", "professor", "trainer", "editor"],
+      enum: USER_ROLES,
 
       default: "trainer",
     },
@@ -113,13 +115,6 @@ const userSchema = new mongoose.Schema(
 
       default: true,
     },
-
-    /*
-     * False for a new
-     * Google/Facebook trainer
-     * until missing Trainer data
-     * has been completed.
-     */
 
     profileCompleted: {
       type: Boolean,

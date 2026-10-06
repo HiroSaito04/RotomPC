@@ -1,6 +1,6 @@
-// rotompc-client/src/constants/rotomAI.js
+// filepath: rotompc-client/src/constants/rotomAI.js
 
-export const ROTOM_AI_ICON = "/rotompc-icon.svg";
+export const ROTOM_AI_ICON = "/rotompc-icon02.svg";
 
 export const ROTOM_AI_SESSION_KEY = "rotom_ai_chat";
 
@@ -17,6 +17,25 @@ export const ROTOM_AI_TELEPORTS_PER_CYCLE = 5;
 export const ROTOM_AI_DOCK_DURATION = 20000;
 
 export const ROTOM_AI_BUBBLE_INTERVAL = 3500;
+
+/* =========================================================
+   RESPONSIVE LAUNCHER LAYOUT
+
+   MOBILE < 768px
+
+       [ RotomAI ]
+           gap
+       [  Buddy  ]
+
+
+   TABLET / DESKTOP >= 768px
+
+       [ RotomAI ] gap [ Buddy ]
+========================================================= */
+
+export const ROTOM_AI_DOCK_GAP = 8;
+
+export const ROTOM_AI_EDGE_PADDING = 16;
 
 /* =========================================================
    ROTOM AI DOCK MESSAGES

@@ -45,7 +45,9 @@ const AuthSocialSection = ({
             text-zinc-400
           "
         >
-          {mode === "signup" ? "social signup" : "social login"}
+          {mode === "signup"
+            ? "CONTINUE SIGNING UP WITH"
+            : "CONTINUE SIGNING IN WITH"}
         </span>
 
         <div
